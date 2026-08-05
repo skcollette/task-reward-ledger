@@ -1,776 +1,1399 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<link rel="manifest" href="/task-reward-ledger/manifest.webmanifest">
-<meta name="theme-color" content="#0f172a">
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Task & Reward Ledger</title>
-<meta name="theme-color" content="#16302C" />
-<link rel="icon" href="data:," />
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
-  import {
-    getAuth,
-    GoogleAuthProvider,
-    signInWithPopup,
-    onAuthStateChanged,
-    signOut
-  } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
-  import {
-    getFirestore,
-    collection,
-    addDoc,
-    deleteDoc,
-    doc,
-    onSnapshot,
-    updateDoc,
-    query,
-    orderBy
-  } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Task & Reward Ledger</title>
+  <link rel="manifest" href="/task-reward-ledger/manifest.webmanifest">
+  <meta name="theme-color" content="#16302C" />
+  <link rel="icon" href="data:," />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Serif+4:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAAOGdr4lx16d4ux3r9ZWKx1B-PfgCemL0",
-    authDomain: "task-reward-ledger.firebaseapp.com",
-    projectId: "task-reward-ledger",
-    storageBucket: "task-reward-ledger.firebasestorage.app",
-    messagingSenderId: "129914738583",
-    appId: "1:129914738583:web:96fa5aa7d00c2ade61d6d2",
-    measurementId: "G-T1DQKMNF09"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const auth = getAuth(app);
-  const db = getFirestore(app);
-
-  const familyId = "collette-family";
-  const tasksRef = collection(db, "families", familyId, "tasks");
-
-  const state = {
-    tasks: [],
-    filter: "all",
-    ownerFilter: "all",
-    user: null
-  };
-
-  let unsubscribeTasks = null;
-
-  function uid() {
-    return Math.random().toString(36).slice(2, 10);
-  }
-
-  function escapeHtml(str) {
-    const div = document.createElement("div");
-    div.textContent = String(str ?? "");
-    return div.innerHTML;
-  }
-
-  function showError(msg) {
-    const el = document.getElementById("errorMsg");
-    if (!el) return;
-    el.textContent = msg;
-    el.style.display = "block";
-  }
-
-  function hideError() {
-    const el = document.getElementById("errorMsg");
-    if (!el) return;
-    el.style.display = "none";
-    el.textContent = "";
-  }
-
-  function clearSubscription() {
-    if (unsubscribeTasks) {
-      unsubscribeTasks();
-      unsubscribeTasks = null;
+    :root {
+      --ink: #16302C;
+      --parchment: #F3EEE1;
+      --parchment-dark: #E7DFCB;
+      --gold: #C9973F;
+      --gold-deep: #8F6A26;
+      --sage: #6E8F73;
+      --charcoal: #26261F;
+      --muted: #7A7768;
+      --surface: #ffffff;
     }
-  }
 
-  function getOwnerLabel(value) {
-    if (value === "me") return "Me";
-    if (value === "wife") return "Wife";
-    return "Shared";
-  }
+    * { box-sizing: border-box; }
 
-  function startListening() {
-    clearSubscription();
-    const q = query(tasksRef, orderBy("createdAt", "desc"));
+    body {
+      margin: 0;
+      background: var(--parchment);
+      font-family: 'Source Serif 4', serif;
+      color: var(--charcoal);
+    }
 
-    unsubscribeTasks = onSnapshot(
-      q,
-      (snap) => {
-        state.tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
-        hideError();
-        render();
-      },
-      (err) => {
-        console.error(err);
-        showError("Could not load tasks from Firestore. Check your rules and connection.");
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold-deep);
+      margin: 0;
+    }
+
+    .auth-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .auth-box button {
+      border: 1px solid var(--parchment-dark);
+      background: var(--surface);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+    }
+
+    h1 {
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      font-size: 34px;
+      margin: 0 0 1rem;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
+
+    .subhead {
+      margin: 0 0 1.5rem;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .stats {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+
+    .stat {
+      flex: 1 1 140px;
+      background: var(--surface);
+      border: 1px solid var(--parchment-dark);
+      border-radius: 6px;
+      padding: 10px 14px;
+    }
+
+    .stat .num {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--ink);
+    }
+
+    .stat .label {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--parchment-dark);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1.25rem;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    input[type="text"], select {
+      flex: 1 1 220px;
+      padding: 10px 12px;
+      border: 1px solid var(--parchment-dark);
+      border-radius: 6px;
+      font-family: 'Source Serif 4', serif;
+      font-size: 15px;
+      background: var(--parchment);
+      color: var(--charcoal);
+    }
+
+    input[type="text"]:focus, select:focus {
+      outline: 2px solid var(--sage);
+      outline-offset: 1px;
+    }
+
+    button.add-btn {
+      background: var(--ink);
+      color: var(--parchment);
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .filters {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .filter-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--parchment-dark);
+      border-radius: 20px;
+      padding: 6px 13px;
+      font-size: 12px;
+      font-family: 'IBM Plex Mono', monospace;
+      cursor: pointer;
+    }
+
+    .filter-btn.active {
+      background: var(--ink);
+      color: var(--parchment);
+      border-color: var(--ink);
+    }
+
+    .empty {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .entries {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .entry {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--parchment-dark);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+      position: relative;
+    }
+
+    .half {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .half.task { flex: 1.25; }
+    .half.reward { flex: 1; background: var(--parchment); }
+    .half.reward.unlocked { background: #FEFCF6; }
+
+    .perf {
+      width: 1px;
+      align-self: stretch;
+      position: relative;
+      border-left: 2px dashed var(--parchment-dark);
+    }
+    .perf::before, .perf::after {
+      content: "";
+      position: absolute;
+      left: -9px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--ink);
+    }
+    .perf::before { top: -9px; }
+    .perf::after { bottom: -9px; }
+
+    .stamp-btn {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+    }
+
+    .stamp-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+
+    .circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid var(--parchment-dark);
+    }
+
+    .label-small {
+      font-size: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
+
+    .label-small.task-label { color: var(--muted); }
+    .label-small.reward-label { color: var(--gold-deep); }
+
+    .entry-title { font-size: 16px; }
+    .entry-reward { font-size: 15px; }
+    .done { text-decoration: line-through; color: var(--muted); }
+
+    .meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+    .remove-btn {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0 12px;
+      font-size: 16px;
+    }
+
+    .error-msg {
+      color: #8F3B2A;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+      white-space: pre-wrap;
+    }
+
+    .status {
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+    }
+
+    .status strong {
+      color: var(--ink);
+    }
+
+    @media (max-width: 640px) {
+      h1 { font-size: 30px; }
+      .half { padding: 12px 12px; }
+      .entry { flex-direction: column; }
+      .perf { display: none; }
+      .half.reward { border-top: 1px dashed var(--parchment-dark); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="topbar">
+      <p class="eyebrow">Ledger of tasks &amp; their rewards</p>
+      <div class="auth-box">
+        <span id="userLabel">Not signed in</span>
+        <button id="authBtn" type="button">Sign in with Google</button>
+      </div>
+    </div>
+
+    <h1>Earn it, then claim it</h1>
+    <p class="subhead">Shared in real time through Firestore. No localStorage.</p>
+
+    <div class="status" id="statusLine">Loading...</div>
+    <div class="stats" id="stats"></div>
+
+    <div class="form-card">
+      <div class="form-row">
+        <input type="text" id="taskInput" placeholder="Task — e.g. Finish quarterly report" />
+        <input type="text" id="rewardInput" placeholder="Reward — e.g. 30 min of a new game" />
+      </div>
+      <div class="form-row">
+        <select id="ownerInput" aria-label="Assign to">
+          <option value="me">Me</option>
+          <option value="wife">Wife</option>
+          <option value="shared">Shared</option>
+        </select>
+        <button class="add-btn" id="addBtn" type="button">Add to ledger</button>
+      </div>
+    </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="filters" id="filters"></div>
+    <div id="listArea"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      deleteDoc,
+      doc,
+      onSnapshot,
+      updateDoc,
+      serverTimestamp,
+      query,
+      orderBy
+    } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyAAOGdr4lx16d4ux3r9ZWKx1B-PfgCemL0",
+      authDomain: "task-reward-ledger.firebaseapp.com",
+      projectId: "task-reward-ledger",
+      storageBucket: "task-reward-ledger.firebasestorage.app",
+      messagingSenderId: "129914738583",
+      appId: "1:129914738583:web:96fa5aa7d00c2ade61d6d2",
+      measurementId: "G-T1DQKMNF09"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const familyId = "collette-family";
+    const tasksRef = collection(db, "families", familyId, "tasks");
+    const tasksQuery = query(tasksRef, orderBy("createdAt", "desc"));
+
+    const state = {
+      tasks: [],
+      filter: "all",
+      user: null
+    };
+
+    let unsubscribeTasks = null;
+
+    const els = {
+      authBtn: document.getElementById("authBtn"),
+      userLabel: document.getElementById("userLabel"),
+      statusLine: document.getElementById("statusLine"),
+      stats: document.getElementById("stats"),
+      taskInput: document.getElementById("taskInput"),
+      rewardInput: document.getElementById("rewardInput"),
+      ownerInput: document.getElementById("ownerInput"),
+      addBtn: document.getElementById("addBtn"),
+      errorMsg: document.getElementById("errorMsg"),
+      filters: document.getElementById("filters"),
+      listArea: document.getElementById("listArea")
+    };
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = String(str ?? "");
+      return div.innerHTML;
+    }
+
+    function showError(msg) {
+      els.errorMsg.textContent = msg;
+      els.errorMsg.style.display = "block";
+    }
+
+    function hideError() {
+      els.errorMsg.style.display = "none";
+      els.errorMsg.textContent = "";
+    }
+
+    function setStatus(msg) {
+      els.statusLine.textContent = msg;
+    }
+
+    function stampSvg(color, label) {
+      return '<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">' +
+        '<circle cx="20" cy="20" r="18" fill="none" stroke="' + color + '" stroke-width="2"/>' +
+        '<circle cx="20" cy="20" r="14" fill="none" stroke="' + color + '" stroke-width="1"/>' +
+        '<text x="20" y="24" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="500" fill="' + color + '" transform="rotate(-8 20 20)">' + label + '</text>' +
+        '</svg>';
+    }
+
+    function renderStats() {
+      const total = state.tasks.length;
+      const tasksDone = state.tasks.filter((e) => e.taskDone).length;
+      const rewardsClaimed = state.tasks.filter((e) => e.rewardDone).length;
+      els.stats.innerHTML =
+        '<div class="stat"><div class="num">' + total + '</div><div class="label">Entries</div></div>' +
+        '<div class="stat"><div class="num">' + tasksDone + '</div><div class="label">Tasks done</div></div>' +
+        '<div class="stat"><div class="num">' + rewardsClaimed + '</div><div class="label">Rewards claimed</div></div>';
+    }
+
+    function renderFilters() {
+      const filters = [
+        { key: "all", label: "All" },
+        { key: "open", label: "Open" },
+        { key: "earned", label: "Reward pending" },
+        { key: "closed", label: "Closed out" }
+      ];
+
+      els.filters.innerHTML = filters.map((f) => {
+        const active = f.key === state.filter ? " active" : "";
+        return '<button class="filter-btn' + active + '" data-filter="' + f.key + '" type="button">' + f.label + '</button>';
+      }).join("");
+
+      els.filters.querySelectorAll(".filter-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.filter = btn.getAttribute("data-filter");
+          render();
+        });
+      });
+    }
+
+    function ownerLabel(owner) {
+      if (owner === "me") return "Me";
+      if (owner === "wife") return "Wife";
+      return "Shared";
+    }
+
+    function renderList() {
+      const visible = state.tasks.filter((e) => {
+        if (state.filter === "open") return !e.taskDone;
+        if (state.filter === "earned") return e.taskDone && !e.rewardDone;
+        if (state.filter === "closed") return e.taskDone && e.rewardDone;
+        return true;
+      });
+
+      if (visible.length === 0) {
+        els.listArea.innerHTML = '<div class="empty">' +
+          (state.tasks.length === 0
+            ? "Nothing in the ledger yet. Add a task and its reward above."
+            : "No entries match this filter.") +
+          '</div>';
+        return;
       }
-    );
-  }
 
-  async function signIn() {
-    try {
-      await signInWithPopup(auth, new GoogleAuthProvider());
-    } catch (err) {
-      console.error(err);
-      showError("Sign-in failed. Make sure Google sign-in is enabled in Firebase Auth.");
+      els.listArea.innerHTML = '<div class="entries">' + visible.map((e) => {
+        const taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
+        const rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
+        const hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
+        const owner = e.owner ? ownerLabel(e.owner) : "Shared";
+        const ownerMeta = '<div class="meta">Assigned to: ' + escapeHtml(owner) + '</div>';
+
+        return (
+          '<div class="entry">' +
+            '<div class="half task">' +
+              '<button class="stamp-btn" data-action="task" data-id="' + e.id + '" type="button" aria-label="Toggle task">' + taskCircle + '</button>' +
+              '<div>' +
+                '<div class="label-small task-label">Task</div>' +
+                '<div class="entry-title' + (e.taskDone ? " done" : "") + '">' + escapeHtml(e.title) + '</div>' +
+                ownerMeta +
+              '</div>' +
+            '</div>' +
+            '<div class="perf"></div>' +
+            '<div class="half reward' + (e.taskDone ? " unlocked" : "") + '">' +
+              '<button class="stamp-btn" data-action="reward" data-id="' + e.id + '" type="button" ' + (e.taskDone ? "" : "disabled") + ' aria-label="Toggle reward">' + rewardCircle + '</button>' +
+              '<div>' +
+                '<div class="label-small reward-label">Reward</div>' +
+                '<div class="entry-reward' + (e.rewardDone ? " done" : "") + '">' + escapeHtml(e.reward) + '</div>' +
+                hint +
+              '</div>' +
+            '</div>' +
+            '<button class="remove-btn" data-action="remove" data-id="' + e.id + '" type="button" aria-label="Remove entry">&times;</button>' +
+          '</div>'
+        );
+      }).join("") + '</div>';
+
+      els.listArea.querySelectorAll("[data-action]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          const action = btn.getAttribute("data-action");
+          try {
+            if (action === "task") await toggleTask(id);
+            if (action === "reward") await toggleReward(id);
+            if (action === "remove") await removeEntry(id);
+          } catch (err) {
+            console.error(err);
+            showError(err?.message || "Something went wrong.");
+          }
+        });
+      });
     }
-  }
 
-  async function signOutUser() {
-    try {
-      await signOut(auth);
-    } catch (err) {
-      console.error(err);
-      showError("Could not sign out.");
+    function render() {
+      renderStats();
+      renderFilters();
+      renderList();
     }
-  }
 
-  async function addTask() {
-    const titleInput = document.getElementById("taskInput");
-    const rewardInput = document.getElementById("rewardInput");
-    const ownerInput = document.getElementById("ownerInput");
+    async function signIn() {
+      hideError();
+      try {
+        await signInWithPopup(auth, new GoogleAuthProvider());
+      } catch (err) {
+        console.error(err);
+        showError(err?.message || "Sign-in failed.");
+      }
+    }
 
-    const title = titleInput.value.trim();
-    const reward = rewardInput.value.trim();
-    const owner = ownerInput.value;
+    async function signOutUser() {
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.error(err);
+        showError(err?.message || "Sign-out failed.");
+      }
+    }
 
-    if (!title) return;
+    async function addTask() {
+      hideError();
+      const title = els.taskInput.value.trim();
+      const reward = els.rewardInput.value.trim();
+      const owner = els.ownerInput.value;
 
-    try {
+      if (!auth.currentUser) {
+        showError("Please sign in before adding tasks.");
+        return;
+      }
+
+      if (!title) return;
+
       await addDoc(tasksRef, {
         title,
         reward: reward || "No reward set",
         owner,
         taskDone: false,
         rewardDone: false,
-        createdAt: Date.now()
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser.uid
       });
 
-      titleInput.value = "";
-      rewardInput.value = "";
-      ownerInput.value = "shared";
-      hideError();
-    } catch (err) {
-      console.error(err);
-      showError("Could not save the task. Check Firestore rules.");
+      els.taskInput.value = "";
+      els.rewardInput.value = "";
+      els.ownerInput.value = "me";
     }
-  }
 
-  async function toggleTask(id) {
-    const task = state.tasks.find((e) => e.id === id);
-    if (!task) return;
+    async function toggleTask(id) {
+      const current = state.tasks.find((e) => e.id === id);
+      if (!current) return;
 
-    try {
-      const nowDone = !task.taskDone;
+      const nowDone = !current.taskDone;
       await updateDoc(doc(db, "families", familyId, "tasks", id), {
         taskDone: nowDone,
-        rewardDone: nowDone ? task.rewardDone : false
+        rewardDone: nowDone ? current.rewardDone : false
       });
-    } catch (err) {
-      console.error(err);
-      showError("Could not update the task.");
     }
-  }
 
-  async function toggleReward(id) {
-    const task = state.tasks.find((e) => e.id === id);
-    if (!task || !task.taskDone) return;
+    async function toggleReward(id) {
+      const current = state.tasks.find((e) => e.id === id);
+      if (!current || !current.taskDone) return;
 
-    try {
       await updateDoc(doc(db, "families", familyId, "tasks", id), {
-        rewardDone: !task.rewardDone
+        rewardDone: !current.rewardDone
       });
-    } catch (err) {
-      console.error(err);
-      showError("Could not update the reward.");
     }
-  }
 
-  async function removeEntry(id) {
-    try {
+    async function removeEntry(id) {
       await deleteDoc(doc(db, "families", familyId, "tasks", id));
-    } catch (err) {
-      console.error(err);
-      showError("Could not delete the task.");
     }
-  }
 
-  function getVisibleTasks() {
-    return state.tasks.filter((e) => {
-      if (state.ownerFilter === "mine" && e.owner !== "me") return false;
-      if (state.ownerFilter === "hers" && e.owner !== "wife") return false;
-      if (state.ownerFilter === "shared" && e.owner !== "shared") return false;
-
-      if (state.filter === "open") return !e.taskDone;
-      if (state.filter === "earned") return e.taskDone && !e.rewardDone;
-      if (state.filter === "closed") return e.taskDone && e.rewardDone;
-      return true;
-    });
-  }
-
-  function stampSvg(color, label) {
-    return '<svg width="40" height="40" viewBox="0 0 40 40">' +
-      '<circle cx="20" cy="20" r="18" fill="none" stroke="' + color + '" stroke-width="2"/>' +
-      '<circle cx="20" cy="20" r="14" fill="none" stroke="' + color + '" stroke-width="1"/>' +
-      '<text x="20" y="24" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="500" fill="' + color + '" transform="rotate(-8 20 20)">' + label + '</text>' +
-      '</svg>';
-  }
-
-  function renderAuth() {
-    const status = document.getElementById("authStatus");
-    const signInBtn = document.getElementById("signInBtn");
-    const signOutBtn = document.getElementById("signOutBtn");
-
-    if (!status || !signInBtn || !signOutBtn) return;
-
-    if (state.user) {
-      signInBtn.style.display = "none";
-      signOutBtn.style.display = "inline-flex";
-      status.textContent = state.user.displayName || state.user.email || "Signed in";
-    } else {
-      signInBtn.style.display = "inline-flex";
-      signOutBtn.style.display = "none";
-      status.textContent = "Not signed in";
-    }
-  }
-
-  function renderStats() {
-    const total = state.tasks.length;
-    const tasksDone = state.tasks.filter((e) => e.taskDone).length;
-    const rewardsClaimed = state.tasks.filter((e) => e.rewardDone).length;
-    const html =
-      '<div class="stat"><div class="num">' + total + '</div><div class="label">Entries</div></div>' +
-      '<div class="stat"><div class="num">' + tasksDone + '</div><div class="label">Tasks done</div></div>' +
-      '<div class="stat"><div class="num">' + rewardsClaimed + '</div><div class="label">Rewards claimed</div></div>';
-    document.getElementById("stats").innerHTML = html;
-  }
-
-  function renderFilters() {
-    const statusFilters = [
-      { key: "all", label: "All" },
-      { key: "open", label: "Open" },
-      { key: "earned", label: "Reward pending" },
-      { key: "closed", label: "Closed out" }
-    ];
-
-    const ownerFilters = [
-      { key: "all", label: "Everyone" },
-      { key: "mine", label: "Mine" },
-      { key: "hers", label: "Hers" },
-      { key: "shared", label: "Shared" }
-    ];
-
-    const statusHtml = statusFilters.map((f) => {
-      const active = f.key === state.filter ? " active" : "";
-      return '<button class="filter-btn' + active + '" data-filter-type="status" data-filter="' + f.key + '">' + f.label + '</button>';
-    }).join("");
-
-    const ownerHtml = ownerFilters.map((f) => {
-      const active = f.key === state.ownerFilter ? " active" : "";
-      return '<button class="filter-btn' + active + '" data-filter-type="owner" data-filter="' + f.key + '">' + f.label + '</button>';
-    }).join("");
-
-    const el = document.getElementById("filters");
-    el.innerHTML =
-      '<div class="filter-group">' +
-        '<div class="group-label">Status</div>' +
-        '<div class="filters-row">' + statusHtml + '</div>' +
-      '</div>' +
-      '<div class="filter-group">' +
-        '<div class="group-label">Owner</div>' +
-        '<div class="filters-row">' + ownerHtml + '</div>' +
-      '</div>';
-
-    Array.prototype.forEach.call(el.querySelectorAll(".filter-btn"), function (btn) {
-      btn.addEventListener("click", function () {
-        const type = btn.getAttribute("data-filter-type");
-        const value = btn.getAttribute("data-filter");
-        if (type === "status") state.filter = value;
-        if (type === "owner") state.ownerFilter = value;
+    function startListening() {
+      if (unsubscribeTasks) unsubscribeTasks();
+      unsubscribeTasks = onSnapshot(tasksQuery, (snap) => {
+        state.tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setStatus("Live sync active: " + state.tasks.length + " task(s) loaded.");
         render();
+      }, (err) => {
+        console.error(err);
+        showError(err?.message || "Could not load tasks.");
+        setStatus("Live sync unavailable.");
       });
-    });
-  }
-
-  function renderList() {
-    const visible = getVisibleTasks();
-    const area = document.getElementById("listArea");
-
-    if (visible.length === 0) {
-      area.innerHTML = '<div class="empty">' +
-        (state.tasks.length === 0
-          ? "Nothing in the ledger yet. Add a task and its reward above."
-          : "No entries match these filters.") +
-        '</div>';
-      return;
     }
 
-    const html = '<div class="entries">' + visible.map(function (e) {
-      const taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
-      const rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
-      const hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
-      return (
-        '<div class="entry">' +
-          '<div class="half task">' +
-            '<button class="stamp-btn" data-action="task" data-id="' + e.id + '" aria-label="Toggle task">' + taskCircle + '</button>' +
-            '<div>' +
-              '<div class="label-small task-label">Task • ' + escapeHtml(getOwnerLabel(e.owner)) + '</div>' +
-              '<div class="entry-title' + (e.taskDone ? " done" : "") + '">' + escapeHtml(e.title) + '</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="perf"></div>' +
-          '<div class="half reward' + (e.taskDone ? " unlocked" : "") + '">' +
-            '<button class="stamp-btn" data-action="reward" data-id="' + e.id + '" ' + (e.taskDone ? "" : "disabled") + ' aria-label="Toggle reward">' + rewardCircle + '</button>' +
-            '<div>' +
-              '<div class="label-small reward-label">Reward</div>' +
-              '<div class="entry-reward' + (e.rewardDone ? " done" : "") + '">' + escapeHtml(e.reward) + '</div>' +
-              hint +
-            '</div>' +
-          '</div>' +
-          '<button class="remove-btn" data-action="remove" data-id="' + e.id + '" aria-label="Remove entry">&times;</button>' +
-        '</div>'
-      );
-    }).join("") + '</div>';
-
-    area.innerHTML = html;
-
-    Array.prototype.forEach.call(area.querySelectorAll("[data-action]"), function (btn) {
-      btn.addEventListener("click", function () {
-        const id = btn.getAttribute("data-id");
-        const action = btn.getAttribute("data-action");
-        if (action === "task") toggleTask(id);
-        if (action === "reward") toggleReward(id);
-        if (action === "remove") removeEntry(id);
-      });
-    });
-  }
-
-  function renderSignedOut() {
-    state.tasks = [];
-    render();
-    const area = document.getElementById("listArea");
-    if (area) {
-      area.innerHTML = '<div class="empty">Sign in with Google to see and edit the shared family ledger.</div>';
-    }
-  }
-
-  function render() {
-    renderAuth();
-    renderStats();
-    renderFilters();
-    if (state.user) {
-      renderList();
-    }
-  }
-
-  function init() {
-    document.getElementById("addBtn").addEventListener("click", addTask);
-    document.getElementById("taskInput").addEventListener("keydown", function (ev) {
-      if (ev.key === "Enter") addTask();
-    });
-    document.getElementById("rewardInput").addEventListener("keydown", function (ev) {
-      if (ev.key === "Enter") addTask();
-    });
-    document.getElementById("ownerInput").addEventListener("keydown", function (ev) {
-      if (ev.key === "Enter") addTask();
-    });
-    document.getElementById("signInBtn").addEventListener("click", signIn);
-    document.getElementById("signOutBtn").addEventListener("click", signOutUser);
-
-    onAuthStateChanged(auth, function (user) {
+    onAuthStateChanged(auth, (user) => {
       state.user = user || null;
-      hideError();
-      renderAuth();
 
-      if (user) {
-        startListening();
-      } else {
-        clearSubscription();
+      if (!user) {
+        els.userLabel.textContent = "Not signed in";
+        els.authBtn.textContent = "Sign in with Google";
+        setStatus("Sign in to view and edit the shared ledger.");
+        if (unsubscribeTasks) {
+          unsubscribeTasks();
+          unsubscribeTasks = null;
+        }
         state.tasks = [];
-        renderSignedOut();
+        render();
+        return;
       }
+
+      els.userLabel.textContent = user.displayName || user.email || "Signed in";
+      els.authBtn.textContent = "Sign out";
+      setStatus("Signed in as " + (user.displayName || user.email || "user") + ". Loading shared ledger...");
+      startListening();
+    });
+
+    els.authBtn.addEventListener("click", () => {
+      if (state.user) signOutUser();
+      else signIn();
+    });
+
+    els.addBtn.addEventListener("click", () => {
+      addTask().catch((err) => {
+        console.error(err);
+        showError(err?.message || "Could not add task.");
+      });
+    });
+
+    els.taskInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") addTask().catch((err) => {
+        console.error(err);
+        showError(err?.message || "Could not add task.");
+      });
+    });
+
+    els.rewardInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") addTask().catch((err) => {
+        console.error(err);
+        showError(err?.message || "Could not add task.");
+      });
     });
 
     render();
-  }
+    setStatus("Connecting to Firebase...");
+  </script>
 
-  window.addEventListener("DOMContentLoaded", init);
-</script>
-<style>
-  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Serif+4:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/task-reward-ledger/sw.js").catch(function (err) {
+          console.warn("Service worker registration failed:", err);
+        });
+      });
+    }
+  </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Task & Reward Ledger</title>
+  <link rel="manifest" href="/task-reward-ledger/manifest.webmanifest">
+  <meta name="theme-color" content="#16302C" />
+  <link rel="icon" href="data:," />
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Serif+4:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
 
-  :root {
-    --ink: #16302C;
-    --parchment: #F3EEE1;
-    --parchment-dark: #E7DFCB;
-    --gold: #C9973F;
-    --gold-deep: #8F6A26;
-    --sage: #6E8F73;
-    --charcoal: #26261F;
-    --muted: #7A7768;
-  }
+    :root {
+      --ink: #16302C;
+      --parchment: #F3EEE1;
+      --parchment-dark: #E7DFCB;
+      --gold: #C9973F;
+      --gold-deep: #8F6A26;
+      --sage: #6E8F73;
+      --charcoal: #26261F;
+      --muted: #7A7768;
+      --surface: #ffffff;
+    }
 
-  * { box-sizing: border-box; }
+    * { box-sizing: border-box; }
 
-  body {
-    margin: 0;
-    background: var(--parchment);
-    font-family: 'Source Serif 4', serif;
-    color: var(--charcoal);
-  }
+    body {
+      margin: 0;
+      background: var(--parchment);
+      font-family: 'Source Serif 4', serif;
+      color: var(--charcoal);
+    }
 
-  .wrap {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 2.5rem 1.25rem 4rem;
-  }
+    .wrap {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
 
-  .eyebrow {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--gold-deep);
-    margin: 0 0 4px;
-  }
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
 
-  h1 {
-    font-family: 'Fraunces', serif;
-    font-weight: 600;
-    font-size: 34px;
-    margin: 0 0 1.25rem;
-    color: var(--ink);
-    letter-spacing: -0.01em;
-  }
+    .eyebrow {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold-deep);
+      margin: 0;
+    }
 
-  .auth-card,
-  .form-card,
-  .stat,
-  .entry {
-    background: #fff;
-    border: 1px solid var(--parchment-dark);
-  }
+    .auth-box {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      color: var(--muted);
+    }
 
-  .auth-card {
-    border-radius: 8px;
-    padding: 0.9rem 1rem;
-    margin-bottom: 1rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
+    .auth-box button {
+      border: 1px solid var(--parchment-dark);
+      background: var(--surface);
+      color: var(--ink);
+      border-radius: 999px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+    }
 
-  .auth-left {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
+    h1 {
+      font-family: 'Fraunces', serif;
+      font-weight: 600;
+      font-size: 34px;
+      margin: 0 0 1rem;
+      color: var(--ink);
+      letter-spacing: -0.01em;
+    }
 
-  .auth-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--muted);
-  }
+    .subhead {
+      margin: 0 0 1.5rem;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
 
-  .auth-status {
-    font-size: 14px;
-    color: var(--ink);
-  }
+    .stats {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
 
-  .auth-actions {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-  }
+    .stat {
+      flex: 1 1 140px;
+      background: var(--surface);
+      border: 1px solid var(--parchment-dark);
+      border-radius: 6px;
+      padding: 10px 14px;
+    }
 
-  .auth-btn {
-    background: var(--ink);
-    color: var(--parchment);
-    border: none;
-    border-radius: 6px;
-    padding: 9px 14px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    cursor: pointer;
-  }
+    .stat .num {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 22px;
+      font-weight: 500;
+      color: var(--ink);
+    }
 
-  .auth-btn.secondary {
-    background: transparent;
-    color: var(--ink);
-    border: 1px solid var(--parchment-dark);
-  }
+    .stat .label {
+      font-size: 12px;
+      color: var(--muted);
+    }
 
-  .stats {
-    display: flex;
-    gap: 12px;
-    margin-bottom: 1.25rem;
-    flex-wrap: wrap;
-  }
+    .form-card {
+      background: var(--surface);
+      border: 1px solid var(--parchment-dark);
+      border-radius: 10px;
+      padding: 1rem 1.1rem;
+      margin-bottom: 1.25rem;
+    }
 
-  .stat {
-    flex: 1 1 160px;
-    border-radius: 6px;
-    padding: 10px 14px;
-  }
+    .form-row {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
 
-  .stat .num {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 22px;
-    font-weight: 500;
-    color: var(--ink);
-  }
+    input[type="text"], select {
+      flex: 1 1 220px;
+      padding: 10px 12px;
+      border: 1px solid var(--parchment-dark);
+      border-radius: 6px;
+      font-family: 'Source Serif 4', serif;
+      font-size: 15px;
+      background: var(--parchment);
+      color: var(--charcoal);
+    }
 
-  .stat .label {
-    font-size: 12px;
-    color: var(--muted);
-  }
+    input[type="text"]:focus, select:focus {
+      outline: 2px solid var(--sage);
+      outline-offset: 1px;
+    }
 
-  .form-card {
-    border-radius: 8px;
-    padding: 1.1rem 1.2rem;
-    margin-bottom: 1rem;
-  }
+    button.add-btn {
+      background: var(--ink);
+      color: var(--parchment);
+      border: none;
+      border-radius: 6px;
+      padding: 10px 18px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
 
-  .form-row {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-  }
+    .filters {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
 
-  input[type="text"], select {
-    flex: 1 1 200px;
-    padding: 9px 12px;
-    border: 1px solid var(--parchment-dark);
-    border-radius: 6px;
-    font-family: 'Source Serif 4', serif;
-    font-size: 15px;
-    background: var(--parchment);
-    color: var(--charcoal);
-  }
+    .filter-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--parchment-dark);
+      border-radius: 20px;
+      padding: 6px 13px;
+      font-size: 12px;
+      font-family: 'IBM Plex Mono', monospace;
+      cursor: pointer;
+    }
 
-  input[type="text"]:focus, select:focus {
-    outline: 2px solid var(--sage);
-    outline-offset: 1px;
-  }
+    .filter-btn.active {
+      background: var(--ink);
+      color: var(--parchment);
+      border-color: var(--ink);
+    }
 
-  button.add-btn {
-    background: var(--ink);
-    color: var(--parchment);
-    border: none;
-    border-radius: 6px;
-    padding: 9px 18px;
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 12px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-    cursor: pointer;
-  }
+    .empty {
+      text-align: center;
+      padding: 2.5rem 1rem;
+      color: var(--muted);
+      font-size: 15px;
+    }
 
-  .filters {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin-bottom: 14px;
-  }
+    .entries {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
 
-  .filter-group {
-    padding: 0;
-  }
+    .entry {
+      display: flex;
+      background: var(--surface);
+      border: 1px solid var(--parchment-dark);
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+      position: relative;
+    }
 
-  .group-label {
-    font-family: 'IBM Plex Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--gold-deep);
-    margin: 0 0 6px;
-  }
+    .half {
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
 
-  .filters-row {
-    display: flex;
-    gap: 6px;
-    flex-wrap: wrap;
-  }
+    .half.task { flex: 1.25; }
+    .half.reward { flex: 1; background: var(--parchment); }
+    .half.reward.unlocked { background: #FEFCF6; }
 
-  .filter-btn {
-    background: transparent;
-    color: var(--muted);
-    border: 1px solid var(--parchment-dark);
-    border-radius: 20px;
-    padding: 5px 13px;
-    font-size: 12px;
-    font-family: 'IBM Plex Mono', monospace;
-    cursor: pointer;
-  }
+    .perf {
+      width: 1px;
+      align-self: stretch;
+      position: relative;
+      border-left: 2px dashed var(--parchment-dark);
+    }
+    .perf::before, .perf::after {
+      content: "";
+      position: absolute;
+      left: -9px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--ink);
+    }
+    .perf::before { top: -9px; }
+    .perf::after { bottom: -9px; }
 
-  .filter-btn.active {
-    background: var(--ink);
-    color: var(--parchment);
-    border-color: var(--ink);
-  }
+    .stamp-btn {
+      width: 40px;
+      height: 40px;
+      flex-shrink: 0;
+      border: none;
+      background: transparent;
+      cursor: pointer;
+      padding: 0;
+    }
 
-  .empty {
-    text-align: center;
-    padding: 2.5rem 1rem;
-    color: var(--muted);
-    font-size: 15px;
-  }
+    .stamp-btn:disabled { cursor: not-allowed; opacity: 0.4; }
 
-  .entries {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-  }
+    .circle {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      border: 2px solid var(--parchment-dark);
+    }
 
-  .entry {
-    display: flex;
-    border-radius: 10px;
-    overflow: hidden;
-    box-shadow: 0 1px 0 rgba(0,0,0,0.03);
-    position: relative;
-  }
+    .label-small {
+      font-size: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 2px;
+    }
 
-  .half {
-    padding: 14px 16px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
+    .label-small.task-label { color: var(--muted); }
+    .label-small.reward-label { color: var(--gold-deep); }
 
-  .half.task { flex: 1.3; }
-  .half.reward { flex: 1; background: var(--parchment); }
-  .half.reward.unlocked { background: #FEFCF6; }
+    .entry-title { font-size: 16px; }
+    .entry-reward { font-size: 15px; }
+    .done { text-decoration: line-through; color: var(--muted); }
 
-  .perf {
-    width: 1px;
-    align-self: stretch;
-    position: relative;
-    border-left: 2px dashed var(--parchment-dark);
-  }
-  .perf::before, .perf::after {
-    content: "";
-    position: absolute;
-    left: -9px;
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    background: var(--ink);
-  }
-  .perf::before { top: -9px; }
-  .perf::after { bottom: -9px; }
+    .meta {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 4px;
+      font-family: 'IBM Plex Mono', monospace;
+    }
 
-  .stamp-btn {
-    width: 40px;
-    height: 40px;
-    flex-shrink: 0;
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    padding: 0;
-  }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
 
-  .stamp-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+    .remove-btn {
+      border: none;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0 12px;
+      font-size: 16px;
+    }
 
-  .circle {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    border: 2px solid var(--parchment-dark);
-  }
+    .error-msg {
+      color: #8F3B2A;
+      font-size: 13px;
+      margin-bottom: 12px;
+      display: none;
+      white-space: pre-wrap;
+    }
 
-  .label-small {
-    font-size: 10px;
-    font-family: 'IBM Plex Mono', monospace;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    margin-bottom: 2px;
-  }
-  .label-small.task-label { color: var(--muted); }
-  .label-small.reward-label { color: var(--gold-deep); }
+    .status {
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+    }
 
-  .entry-title { font-size: 16px; }
-  .entry-reward { font-size: 15px; }
-  .done { text-decoration: line-through; color: var(--muted); }
+    .status strong {
+      color: var(--ink);
+    }
 
-  .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
-
-  .remove-btn {
-    border: none;
-    background: transparent;
-    color: var(--muted);
-    cursor: pointer;
-    padding: 0 12px;
-    font-size: 16px;
-  }
-
-  .error-msg {
-    color: #8F3B2A;
-    font-size: 13px;
-    margin: 0 0 12px;
-  }
-
-  @media (max-width: 640px) {
-    h1 { font-size: 30px; }
-    .half { padding: 12px 12px; }
-    .entry { align-items: stretch; }
-  }
-</style>
+    @media (max-width: 640px) {
+      h1 { font-size: 30px; }
+      .half { padding: 12px 12px; }
+      .entry { flex-direction: column; }
+      .perf { display: none; }
+      .half.reward { border-top: 1px dashed var(--parchment-dark); }
+    }
+  </style>
 </head>
 <body>
-
-<div class="wrap">
-  <p class="eyebrow">Ledger of tasks &amp; their rewards</p>
-  <h1>Earn it, then claim it</h1>
-
-  <div class="auth-card">
-    <div class="auth-left">
-      <div class="auth-label">Account</div>
-      <div class="auth-status" id="authStatus">Not signed in</div>
+  <div class="wrap">
+    <div class="topbar">
+      <p class="eyebrow">Ledger of tasks &amp; their rewards</p>
+      <div class="auth-box">
+        <span id="userLabel">Not signed in</span>
+        <button id="authBtn" type="button">Sign in with Google</button>
+      </div>
     </div>
-    <div class="auth-actions">
-      <button class="auth-btn" id="signInBtn">Sign in with Google</button>
-      <button class="auth-btn secondary" id="signOutBtn" style="display:none;">Sign out</button>
+
+    <h1>Earn it, then claim it</h1>
+    <p class="subhead">Shared in real time through Firestore. No localStorage.</p>
+
+    <div class="status" id="statusLine">Loading...</div>
+    <div class="stats" id="stats"></div>
+
+    <div class="form-card">
+      <div class="form-row">
+        <input type="text" id="taskInput" placeholder="Task — e.g. Finish quarterly report" />
+        <input type="text" id="rewardInput" placeholder="Reward — e.g. 30 min of a new game" />
+      </div>
+      <div class="form-row">
+        <select id="ownerInput" aria-label="Assign to">
+          <option value="me">Me</option>
+          <option value="wife">Wife</option>
+          <option value="shared">Shared</option>
+        </select>
+        <button class="add-btn" id="addBtn" type="button">Add to ledger</button>
+      </div>
     </div>
+
+    <div class="error-msg" id="errorMsg"></div>
+    <div class="filters" id="filters"></div>
+    <div id="listArea"></div>
   </div>
 
-  <div class="stats" id="stats"></div>
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+    import {
+      getAuth,
+      GoogleAuthProvider,
+      signInWithPopup,
+      signOut,
+      onAuthStateChanged
+    } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+    import {
+      getFirestore,
+      collection,
+      addDoc,
+      deleteDoc,
+      doc,
+      onSnapshot,
+      updateDoc,
+      serverTimestamp,
+      query,
+      orderBy
+    } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
-  <div class="form-card">
-    <div class="form-row">
-      <input type="text" id="taskInput" placeholder="Task — e.g. Finish quarterly report" />
-      <input type="text" id="rewardInput" placeholder="Reward — e.g. 30 min of a new game" />
-      <select id="ownerInput" aria-label="Task owner">
-        <option value="shared">Shared</option>
-        <option value="me">Me</option>
-        <option value="wife">Wife</option>
-      </select>
-    </div>
-    <button class="add-btn" id="addBtn">Add to ledger</button>
-  </div>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAAOGdr4lx16d4ux3r9ZWKx1B-PfgCemL0",
+      authDomain: "task-reward-ledger.firebaseapp.com",
+      projectId: "task-reward-ledger",
+      storageBucket: "task-reward-ledger.firebasestorage.app",
+      messagingSenderId: "129914738583",
+      appId: "1:129914738583:web:96fa5aa7d00c2ade61d6d2",
+      measurementId: "G-T1DQKMNF09"
+    };
 
-  <div class="error-msg" id="errorMsg" style="display:none;"></div>
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
 
-  <div class="filters" id="filters"></div>
+    const familyId = "collette-family";
+    const tasksRef = collection(db, "families", familyId, "tasks");
+    const tasksQuery = query(tasksRef, orderBy("createdAt", "desc"));
 
-  <div id="listArea"></div>
-</div>
+    const state = {
+      tasks: [],
+      filter: "all",
+      user: null
+    };
 
-<script>
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", function () {
-    navigator.serviceWorker.register("/task-reward-ledger/sw.js");
-  });
-}
-</script>
+    let unsubscribeTasks = null;
+
+    const els = {
+      authBtn: document.getElementById("authBtn"),
+      userLabel: document.getElementById("userLabel"),
+      statusLine: document.getElementById("statusLine"),
+      stats: document.getElementById("stats"),
+      taskInput: document.getElementById("taskInput"),
+      rewardInput: document.getElementById("rewardInput"),
+      ownerInput: document.getElementById("ownerInput"),
+      addBtn: document.getElementById("addBtn"),
+      errorMsg: document.getElementById("errorMsg"),
+      filters: document.getElementById("filters"),
+      listArea: document.getElementById("listArea")
+    };
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = String(str ?? "");
+      return div.innerHTML;
+    }
+
+    function showError(msg) {
+      els.errorMsg.textContent = msg;
+      els.errorMsg.style.display = "block";
+    }
+
+    function hideError() {
+      els.errorMsg.style.display = "none";
+      els.errorMsg.textContent = "";
+    }
+
+    function setStatus(msg) {
+      els.statusLine.textContent = msg;
+    }
+
+    function stampSvg(color, label) {
+      return '<svg width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">' +
+        '<circle cx="20" cy="20" r="18" fill="none" stroke="' + color + '" stroke-width="2"/>' +
+        '<circle cx="20" cy="20" r="14" fill="none" stroke="' + color + '" stroke-width="1"/>' +
+        '<text x="20" y="24" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="500" fill="' + color + '" transform="rotate(-8 20 20)">' + label + '</text>' +
+        '</svg>';
+    }
+
+    function renderStats() {
+      const total = state.tasks.length;
+      const tasksDone = state.tasks.filter((e) => e.taskDone).length;
+      const rewardsClaimed = state.tasks.filter((e) => e.rewardDone).length;
+      els.stats.innerHTML =
+        '<div class="stat"><div class="num">' + total + '</div><div class="label">Entries</div></div>' +
+        '<div class="stat"><div class="num">' + tasksDone + '</div><div class="label">Tasks done</div></div>' +
+        '<div class="stat"><div class="num">' + rewardsClaimed + '</div><div class="label">Rewards claimed</div></div>';
+    }
+
+    function renderFilters() {
+      const filters = [
+        { key: "all", label: "All" },
+        { key: "open", label: "Open" },
+        { key: "earned", label: "Reward pending" },
+        { key: "closed", label: "Closed out" }
+      ];
+
+      els.filters.innerHTML = filters.map((f) => {
+        const active = f.key === state.filter ? " active" : "";
+        return '<button class="filter-btn' + active + '" data-filter="' + f.key + '" type="button">' + f.label + '</button>';
+      }).join("");
+
+      els.filters.querySelectorAll(".filter-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.filter = btn.getAttribute("data-filter");
+          render();
+        });
+      });
+    }
+
+    function ownerLabel(owner) {
+      if (owner === "me") return "Me";
+      if (owner === "wife") return "Wife";
+      return "Shared";
+    }
+
+    function renderList() {
+      const visible = state.tasks.filter((e) => {
+        if (state.filter === "open") return !e.taskDone;
+        if (state.filter === "earned") return e.taskDone && !e.rewardDone;
+        if (state.filter === "closed") return e.taskDone && e.rewardDone;
+        return true;
+      });
+
+      if (visible.length === 0) {
+        els.listArea.innerHTML = '<div class="empty">' +
+          (state.tasks.length === 0
+            ? "Nothing in the ledger yet. Add a task and its reward above."
+            : "No entries match this filter.") +
+          '</div>';
+        return;
+      }
+
+      els.listArea.innerHTML = '<div class="entries">' + visible.map((e) => {
+        const taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
+        const rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
+        const hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
+        const owner = e.owner ? ownerLabel(e.owner) : "Shared";
+        const ownerMeta = '<div class="meta">Assigned to: ' + escapeHtml(owner) + '</div>';
+
+        return (
+          '<div class="entry">' +
+            '<div class="half task">' +
+              '<button class="stamp-btn" data-action="task" data-id="' + e.id + '" type="button" aria-label="Toggle task">' + taskCircle + '</button>' +
+              '<div>' +
+                '<div class="label-small task-label">Task</div>' +
+                '<div class="entry-title' + (e.taskDone ? " done" : "") + '">' + escapeHtml(e.title) + '</div>' +
+                ownerMeta +
+              '</div>' +
+            '</div>' +
+            '<div class="perf"></div>' +
+            '<div class="half reward' + (e.taskDone ? " unlocked" : "") + '">' +
+              '<button class="stamp-btn" data-action="reward" data-id="' + e.id + '" type="button" ' + (e.taskDone ? "" : "disabled") + ' aria-label="Toggle reward">' + rewardCircle + '</button>' +
+              '<div>' +
+                '<div class="label-small reward-label">Reward</div>' +
+                '<div class="entry-reward' + (e.rewardDone ? " done" : "") + '">' + escapeHtml(e.reward) + '</div>' +
+                hint +
+              '</div>' +
+            '</div>' +
+            '<button class="remove-btn" data-action="remove" data-id="' + e.id + '" type="button" aria-label="Remove entry">&times;</button>' +
+          '</div>'
+        );
+      }).join("") + '</div>';
+
+      els.listArea.querySelectorAll("[data-action]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          const action = btn.getAttribute("data-action");
+          try {
+            if (action === "task") await toggleTask(id);
+            if (action === "reward") await toggleReward(id);
+            if (action === "remove") await removeEntry(id);
+          } catch (err) {
+            console.error(err);
+            showError(err?.message || "Something went wrong.");
+          }
+        });
+      });
+    }
+
+    function render() {
+      renderStats();
+      renderFilters();
+      renderList();
+    }
+
+    async function signIn() {
+      hideError();
+      try {
+        await signInWithPopup(auth, new GoogleAuthProvider());
+      } catch (err) {
+        console.error(err);
+        showError(err?.message || "Sign-in failed.");
+      }
+    }
+
+    async function signOutUser() {
+      try {
+        await signOut(auth);
+      } catch (err) {
+        console.error(err);
+        showError(err?.message || "Sign-out failed.");
+      }
+    }
+
+    async function addTask() {
+      hideError();
+      const title = els.taskInput.value.trim();
+      const reward = els.rewardInput.value.trim();
+      const owner = els.ownerInput.value;
+
+      if (!auth.currentUser) {
+        showError("Please sign in before adding tasks.");
+        return;
+      }
+
+      if (!title) return;
+
+      await addDoc(tasksRef, {
+        title,
+        reward: reward || "No reward set",
+        owner,
+        taskDone: false,
+        rewardDone: false,
+        createdAt: serverTimestamp(),
+        createdBy: auth.currentUser.uid
+      });
+
+      els.taskInput.value = "";
+      els.rewardInput.value = "";
+      els.ownerInput.value = "me";
+    }
+
+    async function toggleTask(id) {
+      const current = state.tasks.find((e) => e.id === id);
+      if (!current) return;
+
+      const nowDone = !current.taskDone;
+      await updateDoc(doc(db, "families", familyId, "tasks", id), {
+        taskDone: nowDone,
+        rewardDone: nowDone ? current.rewardDone : false
+      });
+    }
+
+    async function toggleReward(id) {
+      const current = state.tasks.find((e) => e.id === id);
+      if (!current || !current.taskDone) return;
+
+      await updateDoc(doc(db, "families", familyId, "tasks", id), {
+        rewardDone: !current.rewardDone
+      });
+    }
+
+    async function removeEntry(id) {
+      await deleteDoc(doc(db, "families", familyId, "tasks", id));
+    }
+
+    function startListening() {
+      if (unsubscribeTasks) unsubscribeTasks();
+      unsubscribeTasks = onSnapshot(tasksQuery, (snap) => {
+        state.tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        setStatus("Live sync active: " + state.tasks.length + " task(s) loaded.");
+        render();
+      }, (err) => {
+        console.error(err);
+        showError(err?.message || "Could not load tasks.");
+        setStatus("Live sync unavailable.");
+      });
+    }
+
+    onAuthStateChanged(auth, (user) => {
+      state.user = user || null;
+
+      if (!user) {
+        els.userLabel.textContent = "Not signed in";
+        els.authBtn.textContent = "Sign in with Google";
+        setStatus("Sign in to view and edit the shared ledger.");
+        if (unsubscribeTasks) {
+          unsubscribeTasks();
+          unsubscribeTasks = null;
+        }
+        state.tasks = [];
+        render();
+        return;
+      }
+
+      els.userLabel.textContent = user.displayName || user.email || "Signed in";
+      els.authBtn.textContent = "Sign out";
+      setStatus("Signed in as " + (user.displayName || user.email || "user") + ". Loading shared ledger...");
+      startListening();
+    });
+
+    els.authBtn.addEventListener("click", () => {
+      if (state.user) signOutUser();
+      else signIn();
+    });
+
+    els.addBtn.addEventListener("click", () => {
+      addTask().catch((err) => {
+        console.error(err);
+        showError(err?.message || "Could not add task.");
+      });
+    });
+
+    els.taskInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") addTask().catch((err) => {
+        console.error(err);
+        showError(err?.message || "Could not add task.");
+      });
+    });
+
+    els.rewardInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") addTask().catch((err) => {
+        console.error(err);
+        showError(err?.message || "Could not add task.");
+      });
+    });
+
+    render();
+    setStatus("Connecting to Firebase...");
+  </script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("/task-reward-ledger/sw.js").catch(function (err) {
+          console.warn("Service worker registration failed:", err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>
