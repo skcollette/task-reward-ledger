@@ -482,6 +482,12 @@
   render();
 })();
 </script>
-
+<script>
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("/task-reward-ledger/sw.js");
+  });
+}
+</script>
 </body>
 </html>
