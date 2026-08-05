@@ -175,10 +175,22 @@
       cursor: pointer;
     }
 
+    .filter-group {
+      margin-bottom: 14px;
+    }
+
+    .filter-group-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--gold-deep);
+      margin: 0 0 6px;
+    }
+
     .filters {
       display: flex;
       gap: 6px;
-      margin-bottom: 14px;
       flex-wrap: wrap;
     }
 
@@ -382,7 +394,17 @@
     </div>
 
     <div class="error-msg" id="errorMsg"></div>
-    <div class="filters" id="filters"></div>
+
+    <div class="filter-group">
+      <div class="filter-group-label">Owner</div>
+      <div class="filters" id="ownerFilters"></div>
+    </div>
+
+    <div class="filter-group">
+      <div class="filter-group-label">Status</div>
+      <div class="filters" id="filters"></div>
+    </div>
+
     <div id="listArea"></div>
   </div>
 
@@ -429,6 +451,7 @@
     const state = {
       tasks: [],
       filter: "all",
+      ownerFilter: "all",
       user: null
     };
 
@@ -447,6 +470,7 @@
       addBtn: document.getElementById("addBtn"),
       cancelEditBtn: document.getElementById("cancelEditBtn"),
       errorMsg: document.getElementById("errorMsg"),
+      ownerFilters: document.getElementById("ownerFilters"),
       filters: document.getElementById("filters"),
       listArea: document.getElementById("listArea")
     };
@@ -519,6 +543,27 @@
         '<div class="stat"><div class="num">' + rewardsClaimed + '</div><div class="label">Rewards claimed</div></div>';
     }
 
+    function renderOwnerFilters() {
+      const owners = [
+        { key: "all", label: "All" },
+        { key: "Stephen", label: "Stephen" },
+        { key: "Angeline", label: "Angeline" },
+        { key: "shared", label: "Shared" }
+      ];
+
+      els.ownerFilters.innerHTML = owners.map((o) => {
+        const active = o.key === state.ownerFilter ? " active" : "";
+        return '<button class="filter-btn' + active + '" data-owner-filter="' + o.key + '" type="button">' + o.label + '</button>';
+      }).join("");
+
+      els.ownerFilters.querySelectorAll("[data-owner-filter]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          state.ownerFilter = btn.getAttribute("data-owner-filter");
+          render();
+        });
+      });
+    }
+
     function renderFilters() {
       const filters = [
         { key: "all", label: "All" },
@@ -542,6 +587,9 @@
 
     function renderList() {
       const visible = state.tasks.filter((e) => {
+        if (state.ownerFilter !== "all" && e.owner !== state.ownerFilter) {
+          return false;
+        }
         if (state.filter === "open") return !e.taskDone;
         if (state.filter === "earned") return e.taskDone && !e.rewardDone;
         if (state.filter === "closed") return e.taskDone && e.rewardDone;
@@ -609,6 +657,7 @@
 
     function render() {
       renderStats();
+      renderOwnerFilters();
       renderFilters();
       renderList();
     }
