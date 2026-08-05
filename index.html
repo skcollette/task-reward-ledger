@@ -1,13 +1,32 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<link rel="manifest" href="/task-reward-ledger/manifest.webmanifest">
-<meta name="theme-color" content="#0f172a">  
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-<title>Task & Reward Ledger</title>
-<meta name="theme-color" content="#16302C" />
-<link rel="icon" href="data:," />
+
+Worked for 38s
+Use Firebase Authentication + Cloud Firestore, and for your plain HTML/JavaScript app use the modular web SDK with browser-module imports. Firebase says the modular API is strongly recommended, and browser modules are a quick way to get started for web apps. Google sign-in is the easiest Firebase auth flow for a web app. 
+
+1) Create the Firebase project and web app
+In the Firebase console, create a project, then register a Web app. Firebase gives you a firebaseConfig object at that step; that is what connects your site to the project. 
+
+2) Create Firestore
+Go to Databases & Storage → Firestore → Create database. For a web app, Firebase’s quickstart says Test mode is the easiest way to begin, while Production mode denies all client reads/writes until your rules allow them. 
+
+3) Turn on Authentication
+For the simplest setup, enable Authentication → Google. Firebase says Google sign-in is the easiest way to authenticate web users with the Firebase SDK, and password auth is also supported if you prefer email/password later. 
+
+4) Set Firestore rules
+Firestore’s docs say user-based access systems should use Firebase Authentication with Cloud Firestore Security Rules. For a first pass, this rule allows only signed-in users to read and write your shared tasks collection: 
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /families/{familyId}/tasks/{taskId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}
+5) Replace localStorage with Firestore
+Firestore initializes with initializeApp(firebaseConfig) and getFirestore(app). For a shared family list, I would store tasks in a path like families/{familyId}/tasks. 
+
+Add this near the top of your index.html:
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
   import {
@@ -83,6 +102,565 @@
     startListening();
   });
 </script>
+Firestore’s realtime listener behavior is what makes this work across both phones: it sends an initial snapshot, then updates again whenever the data changes. 
+
+6) Remove the old localStorage code
+Delete or stop calling the functions that read and write ledger-entries from localStorage. Your UI should now render from the array produced by onSnapshot(...), not from browser storage. That is the key migration. 
+
+7) Use the same family ID on both devices
+Both you and your wife should sign in, then both devices should read and write the same Firestore path: families/collette-family/tasks. Firestore stores data in collections/documents, and the same collection path is what makes the list shared. 
+
+8) Test it
+After deployment, open the app on your phone and your wife’s phone, sign in on both, and create one task. If the rules and collection path are correct, it should appear on both devices almost immediately because Firestore listeners push updates in realtime. 
+
+Send the current index.html and I’ll mark the exact lines to replace.
+
+
+This is the script from the CDN, where do I add it to index.html?
+<script type="module">
+  // Import the functions you need from the SDKs you need
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-analytics.js";
+  // TODO: Add SDKs for Firebase products that you want to use
+  // https://firebase.google.com/docs/web/setup#available-libraries
+
+  // Your web app's Firebase configuration
+  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
+  const firebaseConfig = {
+    apiKey: "AIzaSyAAOGdr4lx16d4ux3r9ZWKx1B-PfgCemL0",
+    authDomain: "task-reward-ledger.firebaseapp.com",
+    projectId: "task-reward-ledger",
+    storageBucket: "task-reward-ledger.firebasestorage.app",
+    messagingSenderId: "129914738583",
+    appId: "1:129914738583:web:96fa5aa7d00c2ade61d6d2",
+    measurementId: "G-T1DQKMNF09"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+</script>
+
+Perfect—that means you've successfully created the Firebase project. 🎉
+
+However, don't paste that script exactly as-is. Firebase gives you a generic starter template, but your app doesn't need Analytics right now. We'll use Firestore and Authentication instead.
+
+Step 1: Find your existing scripts
+Open index.html and scroll to the bottom.
+
+You'll likely see something like:
+
+<script>
+  // all your JavaScript
+  ...
+</script>
+
+<script>
+if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/task-reward-ledger/sw.js");
+}
+</script>
+or something very similar.
+
+Step 2: Don't create another script at the top
+Instead, we're going to replace your main JavaScript script with a module.
+
+Change
+
+<script>
+to
+
+<script type="module">
+This allows you to use the import statements Firebase requires.
+
+Step 3: Add the Firebase imports
+At the very top of that script, before any of your own JavaScript, add:
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+
+import {
+    getFirestore
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+import {
+    getAuth
+} from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+Notice we do not import Analytics.
+
+Step 4: Add your Firebase config
+Immediately after those imports, paste:
+
+const firebaseConfig = {
+    apiKey: "AIzaSyAAOGdr4lx16d4ux3r9ZWKx1B-PfgCemL0",
+    authDomain: "task-reward-ledger.firebaseapp.com",
+    projectId: "task-reward-ledger",
+    storageBucket: "task-reward-ledger.firebasestorage.app",
+    messagingSenderId: "129914738583",
+    appId: "1:129914738583:web:96fa5aa7d00c2ade61d6d2",
+    measurementId: "G-T1DQKMNF09"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+That's all you need for now.
+
+Step 5: Leave everything else alone
+At this point, do not remove any of your localStorage code.
+
+We want to make sure Firebase is connected before we start replacing things.
+
+Before we go any further...
+I'd like to make this as painless as possible.
+
+Since I've already reviewed your repository, I'd rather tell you exactly where to insert the code instead of having you guess.
+
+Could you either:
+
+Paste your current index.html here, or
+
+Upload the file.
+
+Then I'll mark it up line-by-line and tell you exactly:
+
+where to add the imports,
+
+where to paste the Firebase config,
+
+what to delete,
+
+and what to keep.
+
+That will make the migration much smoother and avoid breaking the app.
+
+
+
+Pasted text(2).txt
+Document
+This is the file for index.html.  Can you update it with the needed information from above to make it work?
+
+Worked for 1m 11s
+Done — I updated your index.html into a Firestore-backed version that keeps your GitHub Pages path, adds Google sign-in, listens to the shared families/collette-family/tasks collection, and lets you assign tasks to Me / Wife / Shared. The original file was the localStorage-based version you shared. 
+
+
+Download the updated file here: index.html
+
+You still need to enable Google sign-in in Firebase Auth and add skcollette.github.io as an authorized domain in the Firebase console.
+
+
+
+index.html
+HTML
+
+
+Library
+/
+index.html
+
+
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<link rel="manifest" href="/task-reward-ledger/manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Task & Reward Ledger</title>
+<meta name="theme-color" content="#16302C" />
+<link rel="icon" href="data:," />
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-app.js";
+  import {
+    getAuth,
+    GoogleAuthProvider,
+    signInWithPopup,
+    onAuthStateChanged,
+    signOut
+  } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
+  import {
+    getFirestore,
+    collection,
+    addDoc,
+    deleteDoc,
+    doc,
+    onSnapshot,
+    updateDoc,
+    query,
+    orderBy
+  } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAAOGdr4lx16d4ux3r9ZWKx1B-PfgCemL0",
+    authDomain: "task-reward-ledger.firebaseapp.com",
+    projectId: "task-reward-ledger",
+    storageBucket: "task-reward-ledger.firebasestorage.app",
+    messagingSenderId: "129914738583",
+    appId: "1:129914738583:web:96fa5aa7d00c2ade61d6d2",
+    measurementId: "G-T1DQKMNF09"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const auth = getAuth(app);
+  const db = getFirestore(app);
+
+  const familyId = "collette-family";
+  const tasksRef = collection(db, "families", familyId, "tasks");
+
+  const state = {
+    tasks: [],
+    filter: "all",
+    ownerFilter: "all",
+    user: null
+  };
+
+  let unsubscribeTasks = null;
+
+  function uid() {
+    return Math.random().toString(36).slice(2, 10);
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = String(str ?? "");
+    return div.innerHTML;
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("errorMsg");
+    if (!el) return;
+    el.textContent = msg;
+    el.style.display = "block";
+  }
+
+  function hideError() {
+    const el = document.getElementById("errorMsg");
+    if (!el) return;
+    el.style.display = "none";
+    el.textContent = "";
+  }
+
+  function clearSubscription() {
+    if (unsubscribeTasks) {
+      unsubscribeTasks();
+      unsubscribeTasks = null;
+    }
+  }
+
+  function getOwnerLabel(value) {
+    if (value === "me") return "Me";
+    if (value === "wife") return "Wife";
+    return "Shared";
+  }
+
+  function startListening() {
+    clearSubscription();
+    const q = query(tasksRef, orderBy("createdAt", "desc"));
+
+    unsubscribeTasks = onSnapshot(
+      q,
+      (snap) => {
+        state.tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        hideError();
+        render();
+      },
+      (err) => {
+        console.error(err);
+        showError("Could not load tasks from Firestore. Check your rules and connection.");
+      }
+    );
+  }
+
+  async function signIn() {
+    try {
+      await signInWithPopup(auth, new GoogleAuthProvider());
+    } catch (err) {
+      console.error(err);
+      showError("Sign-in failed. Make sure Google sign-in is enabled in Firebase Auth.");
+    }
+  }
+
+  async function signOutUser() {
+    try {
+      await signOut(auth);
+    } catch (err) {
+      console.error(err);
+      showError("Could not sign out.");
+    }
+  }
+
+  async function addTask() {
+    const titleInput = document.getElementById("taskInput");
+    const rewardInput = document.getElementById("rewardInput");
+    const ownerInput = document.getElementById("ownerInput");
+
+    const title = titleInput.value.trim();
+    const reward = rewardInput.value.trim();
+    const owner = ownerInput.value;
+
+    if (!title) return;
+
+    try {
+      await addDoc(tasksRef, {
+        title,
+        reward: reward || "No reward set",
+        owner,
+        taskDone: false,
+        rewardDone: false,
+        createdAt: Date.now()
+      });
+
+      titleInput.value = "";
+      rewardInput.value = "";
+      ownerInput.value = "shared";
+      hideError();
+    } catch (err) {
+      console.error(err);
+      showError("Could not save the task. Check Firestore rules.");
+    }
+  }
+
+  async function toggleTask(id) {
+    const task = state.tasks.find((e) => e.id === id);
+    if (!task) return;
+
+    try {
+      const nowDone = !task.taskDone;
+      await updateDoc(doc(db, "families", familyId, "tasks", id), {
+        taskDone: nowDone,
+        rewardDone: nowDone ? task.rewardDone : false
+      });
+    } catch (err) {
+      console.error(err);
+      showError("Could not update the task.");
+    }
+  }
+
+  async function toggleReward(id) {
+    const task = state.tasks.find((e) => e.id === id);
+    if (!task || !task.taskDone) return;
+
+    try {
+      await updateDoc(doc(db, "families", familyId, "tasks", id), {
+        rewardDone: !task.rewardDone
+      });
+    } catch (err) {
+      console.error(err);
+      showError("Could not update the reward.");
+    }
+  }
+
+  async function removeEntry(id) {
+    try {
+      await deleteDoc(doc(db, "families", familyId, "tasks", id));
+    } catch (err) {
+      console.error(err);
+      showError("Could not delete the task.");
+    }
+  }
+
+  function getVisibleTasks() {
+    return state.tasks.filter((e) => {
+      if (state.ownerFilter === "mine" && e.owner !== "me") return false;
+      if (state.ownerFilter === "hers" && e.owner !== "wife") return false;
+      if (state.ownerFilter === "shared" && e.owner !== "shared") return false;
+
+      if (state.filter === "open") return !e.taskDone;
+      if (state.filter === "earned") return e.taskDone && !e.rewardDone;
+      if (state.filter === "closed") return e.taskDone && e.rewardDone;
+      return true;
+    });
+  }
+
+  function stampSvg(color, label) {
+    return '<svg width="40" height="40" viewBox="0 0 40 40">' +
+      '<circle cx="20" cy="20" r="18" fill="none" stroke="' + color + '" stroke-width="2"/>' +
+      '<circle cx="20" cy="20" r="14" fill="none" stroke="' + color + '" stroke-width="1"/>' +
+      '<text x="20" y="24" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="500" fill="' + color + '" transform="rotate(-8 20 20)">' + label + '</text>' +
+      '</svg>';
+  }
+
+  function renderAuth() {
+    const status = document.getElementById("authStatus");
+    const signInBtn = document.getElementById("signInBtn");
+    const signOutBtn = document.getElementById("signOutBtn");
+
+    if (!status || !signInBtn || !signOutBtn) return;
+
+    if (state.user) {
+      signInBtn.style.display = "none";
+      signOutBtn.style.display = "inline-flex";
+      status.textContent = state.user.displayName || state.user.email || "Signed in";
+    } else {
+      signInBtn.style.display = "inline-flex";
+      signOutBtn.style.display = "none";
+      status.textContent = "Not signed in";
+    }
+  }
+
+  function renderStats() {
+    const total = state.tasks.length;
+    const tasksDone = state.tasks.filter((e) => e.taskDone).length;
+    const rewardsClaimed = state.tasks.filter((e) => e.rewardDone).length;
+    const html =
+      '<div class="stat"><div class="num">' + total + '</div><div class="label">Entries</div></div>' +
+      '<div class="stat"><div class="num">' + tasksDone + '</div><div class="label">Tasks done</div></div>' +
+      '<div class="stat"><div class="num">' + rewardsClaimed + '</div><div class="label">Rewards claimed</div></div>';
+    document.getElementById("stats").innerHTML = html;
+  }
+
+  function renderFilters() {
+    const statusFilters = [
+      { key: "all", label: "All" },
+      { key: "open", label: "Open" },
+      { key: "earned", label: "Reward pending" },
+      { key: "closed", label: "Closed out" }
+    ];
+
+    const ownerFilters = [
+      { key: "all", label: "Everyone" },
+      { key: "mine", label: "Mine" },
+      { key: "hers", label: "Hers" },
+      { key: "shared", label: "Shared" }
+    ];
+
+    const statusHtml = statusFilters.map((f) => {
+      const active = f.key === state.filter ? " active" : "";
+      return '<button class="filter-btn' + active + '" data-filter-type="status" data-filter="' + f.key + '">' + f.label + '</button>';
+    }).join("");
+
+    const ownerHtml = ownerFilters.map((f) => {
+      const active = f.key === state.ownerFilter ? " active" : "";
+      return '<button class="filter-btn' + active + '" data-filter-type="owner" data-filter="' + f.key + '">' + f.label + '</button>';
+    }).join("");
+
+    const el = document.getElementById("filters");
+    el.innerHTML =
+      '<div class="filter-group">' +
+        '<div class="group-label">Status</div>' +
+        '<div class="filters-row">' + statusHtml + '</div>' +
+      '</div>' +
+      '<div class="filter-group">' +
+        '<div class="group-label">Owner</div>' +
+        '<div class="filters-row">' + ownerHtml + '</div>' +
+      '</div>';
+
+    Array.prototype.forEach.call(el.querySelectorAll(".filter-btn"), function (btn) {
+      btn.addEventListener("click", function () {
+        const type = btn.getAttribute("data-filter-type");
+        const value = btn.getAttribute("data-filter");
+        if (type === "status") state.filter = value;
+        if (type === "owner") state.ownerFilter = value;
+        render();
+      });
+    });
+  }
+
+  function renderList() {
+    const visible = getVisibleTasks();
+    const area = document.getElementById("listArea");
+
+    if (visible.length === 0) {
+      area.innerHTML = '<div class="empty">' +
+        (state.tasks.length === 0
+          ? "Nothing in the ledger yet. Add a task and its reward above."
+          : "No entries match these filters.") +
+        '</div>';
+      return;
+    }
+
+    const html = '<div class="entries">' + visible.map(function (e) {
+      const taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
+      const rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
+      const hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
+      return (
+        '<div class="entry">' +
+          '<div class="half task">' +
+            '<button class="stamp-btn" data-action="task" data-id="' + e.id + '" aria-label="Toggle task">' + taskCircle + '</button>' +
+            '<div>' +
+              '<div class="label-small task-label">Task • ' + escapeHtml(getOwnerLabel(e.owner)) + '</div>' +
+              '<div class="entry-title' + (e.taskDone ? " done" : "") + '">' + escapeHtml(e.title) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="perf"></div>' +
+          '<div class="half reward' + (e.taskDone ? " unlocked" : "") + '">' +
+            '<button class="stamp-btn" data-action="reward" data-id="' + e.id + '" ' + (e.taskDone ? "" : "disabled") + ' aria-label="Toggle reward">' + rewardCircle + '</button>' +
+            '<div>' +
+              '<div class="label-small reward-label">Reward</div>' +
+              '<div class="entry-reward' + (e.rewardDone ? " done" : "") + '">' + escapeHtml(e.reward) + '</div>' +
+              hint +
+            '</div>' +
+          '</div>' +
+          '<button class="remove-btn" data-action="remove" data-id="' + e.id + '" aria-label="Remove entry">&times;</button>' +
+        '</div>'
+      );
+    }).join("") + '</div>';
+
+    area.innerHTML = html;
+
+    Array.prototype.forEach.call(area.querySelectorAll("[data-action]"), function (btn) {
+      btn.addEventListener("click", function () {
+        const id = btn.getAttribute("data-id");
+        const action = btn.getAttribute("data-action");
+        if (action === "task") toggleTask(id);
+        if (action === "reward") toggleReward(id);
+        if (action === "remove") removeEntry(id);
+      });
+    });
+  }
+
+  function renderSignedOut() {
+    state.tasks = [];
+    render();
+    const area = document.getElementById("listArea");
+    if (area) {
+      area.innerHTML = '<div class="empty">Sign in with Google to see and edit the shared family ledger.</div>';
+    }
+  }
+
+  function render() {
+    renderAuth();
+    renderStats();
+    renderFilters();
+    if (state.user) {
+      renderList();
+    }
+  }
+
+  function init() {
+    document.getElementById("addBtn").addEventListener("click", addTask);
+    document.getElementById("taskInput").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") addTask();
+    });
+    document.getElementById("rewardInput").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") addTask();
+    });
+    document.getElementById("ownerInput").addEventListener("keydown", function (ev) {
+      if (ev.key === "Enter") addTask();
+    });
+    document.getElementById("signInBtn").addEventListener("click", signIn);
+    document.getElementById("signOutBtn").addEventListener("click", signOutUser);
+
+    onAuthStateChanged(auth, function (user) {
+      state.user = user || null;
+      hideError();
+      renderAuth();
+
+      if (user) {
+        startListening();
+      } else {
+        clearSubscription();
+        state.tasks = [];
+        renderSignedOut();
+      }
+    });
+
+    render();
+  }
+
+  window.addEventListener("DOMContentLoaded", init);
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Serif+4:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
 
@@ -107,7 +685,7 @@
   }
 
   .wrap {
-    max-width: 640px;
+    max-width: 720px;
     margin: 0 auto;
     padding: 2.5rem 1.25rem 4rem;
   }
@@ -125,21 +703,83 @@
     font-family: 'Fraunces', serif;
     font-weight: 600;
     font-size: 34px;
-    margin: 0 0 1.75rem;
+    margin: 0 0 1.25rem;
     color: var(--ink);
     letter-spacing: -0.01em;
+  }
+
+  .auth-card,
+  .form-card,
+  .stat,
+  .entry {
+    background: #fff;
+    border: 1px solid var(--parchment-dark);
+  }
+
+  .auth-card {
+    border-radius: 8px;
+    padding: 0.9rem 1rem;
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .auth-left {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .auth-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .auth-status {
+    font-size: 14px;
+    color: var(--ink);
+  }
+
+  .auth-actions {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .auth-btn {
+    background: var(--ink);
+    color: var(--parchment);
+    border: none;
+    border-radius: 6px;
+    padding: 9px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .auth-btn.secondary {
+    background: transparent;
+    color: var(--ink);
+    border: 1px solid var(--parchment-dark);
   }
 
   .stats {
     display: flex;
     gap: 12px;
-    margin-bottom: 1.75rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
   }
 
   .stat {
-    flex: 1;
-    background: #fff;
-    border: 1px solid var(--parchment-dark);
+    flex: 1 1 160px;
     border-radius: 6px;
     padding: 10px 14px;
   }
@@ -157,11 +797,9 @@
   }
 
   .form-card {
-    background: #fff;
-    border: 1px solid var(--parchment-dark);
     border-radius: 8px;
     padding: 1.1rem 1.2rem;
-    margin-bottom: 1.75rem;
+    margin-bottom: 1rem;
   }
 
   .form-row {
@@ -171,8 +809,8 @@
     flex-wrap: wrap;
   }
 
-  input[type="text"] {
-    flex: 1 1 220px;
+  input[type="text"], select {
+    flex: 1 1 200px;
     padding: 9px 12px;
     border: 1px solid var(--parchment-dark);
     border-radius: 6px;
@@ -182,7 +820,7 @@
     color: var(--charcoal);
   }
 
-  input[type="text"]:focus {
+  input[type="text"]:focus, select:focus {
     outline: 2px solid var(--sage);
     outline-offset: 1px;
   }
@@ -202,8 +840,27 @@
 
   .filters {
     display: flex;
-    gap: 6px;
+    flex-direction: column;
+    gap: 12px;
     margin-bottom: 14px;
+  }
+
+  .filter-group {
+    padding: 0;
+  }
+
+  .group-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--gold-deep);
+    margin: 0 0 6px;
+  }
+
+  .filters-row {
+    display: flex;
+    gap: 6px;
     flex-wrap: wrap;
   }
 
@@ -239,8 +896,6 @@
 
   .entry {
     display: flex;
-    background: #fff;
-    border: 1px solid var(--parchment-dark);
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 1px 0 rgba(0,0,0,0.03);
@@ -320,7 +975,17 @@
     font-size: 16px;
   }
 
-  .error-msg { color: #8F3B2A; font-size: 13px; margin-bottom: 12px; }
+  .error-msg {
+    color: #8F3B2A;
+    font-size: 13px;
+    margin: 0 0 12px;
+  }
+
+  @media (max-width: 640px) {
+    h1 { font-size: 30px; }
+    .half { padding: 12px 12px; }
+    .entry { align-items: stretch; }
+  }
 </style>
 </head>
 <body>
@@ -329,12 +994,28 @@
   <p class="eyebrow">Ledger of tasks &amp; their rewards</p>
   <h1>Earn it, then claim it</h1>
 
+  <div class="auth-card">
+    <div class="auth-left">
+      <div class="auth-label">Account</div>
+      <div class="auth-status" id="authStatus">Not signed in</div>
+    </div>
+    <div class="auth-actions">
+      <button class="auth-btn" id="signInBtn">Sign in with Google</button>
+      <button class="auth-btn secondary" id="signOutBtn" style="display:none;">Sign out</button>
+    </div>
+  </div>
+
   <div class="stats" id="stats"></div>
 
   <div class="form-card">
     <div class="form-row">
       <input type="text" id="taskInput" placeholder="Task — e.g. Finish quarterly report" />
       <input type="text" id="rewardInput" placeholder="Reward — e.g. 30 min of a new game" />
+      <select id="ownerInput" aria-label="Task owner">
+        <option value="shared">Shared</option>
+        <option value="me">Me</option>
+        <option value="wife">Wife</option>
+      </select>
     </div>
     <button class="add-btn" id="addBtn">Add to ledger</button>
   </div>
@@ -346,217 +1027,6 @@
   <div id="listArea"></div>
 </div>
 
-<script>
-(function () {
-  var STORAGE_KEY = "ledger-entries";
-  var state = {
-    entries: [],
-    filter: "all"
-  };
-
-  function uid() {
-    return Math.random().toString(36).slice(2, 10);
-  }
-
-  function load() {
-    try {
-      var raw = localStorage.getItem(STORAGE_KEY);
-      state.entries = raw ? JSON.parse(raw) : [];
-    } catch (e) {
-      state.entries = [];
-      showError("Couldn't read saved data. Starting fresh.");
-    }
-  }
-
-  function save() {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
-      hideError();
-    } catch (e) {
-      showError("Couldn't save. Your browser storage may be full or disabled.");
-    }
-  }
-
-  function showError(msg) {
-    var el = document.getElementById("errorMsg");
-    el.textContent = msg;
-    el.style.display = "block";
-  }
-  function hideError() {
-    document.getElementById("errorMsg").style.display = "none";
-  }
-
-  function addEntry() {
-    var titleInput = document.getElementById("taskInput");
-    var rewardInput = document.getElementById("rewardInput");
-    var title = titleInput.value.trim();
-    var reward = rewardInput.value.trim();
-    if (!title) return;
-    state.entries.push({
-      id: uid(),
-      title: title,
-      reward: reward || "No reward set",
-      taskDone: false,
-      rewardDone: false,
-      createdAt: Date.now()
-    });
-    titleInput.value = "";
-    rewardInput.value = "";
-    save();
-    render();
-  }
-
-  function toggleTask(id) {
-    state.entries = state.entries.map(function (e) {
-      if (e.id !== id) return e;
-      var nowDone = !e.taskDone;
-      return Object.assign({}, e, {
-        taskDone: nowDone,
-        rewardDone: nowDone ? e.rewardDone : false
-      });
-    });
-    save();
-    render();
-  }
-
-  function toggleReward(id) {
-    state.entries = state.entries.map(function (e) {
-      if (e.id !== id || !e.taskDone) return e;
-      return Object.assign({}, e, { rewardDone: !e.rewardDone });
-    });
-    save();
-    render();
-  }
-
-  function removeEntry(id) {
-    state.entries = state.entries.filter(function (e) { return e.id !== id; });
-    save();
-    render();
-  }
-
-  function stampSvg(color, label) {
-    return '<svg width="40" height="40" viewBox="0 0 40 40">' +
-      '<circle cx="20" cy="20" r="18" fill="none" stroke="' + color + '" stroke-width="2"/>' +
-      '<circle cx="20" cy="20" r="14" fill="none" stroke="' + color + '" stroke-width="1"/>' +
-      '<text x="20" y="24" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="500" fill="' + color + '" transform="rotate(-8 20 20)">' + label + '</text>' +
-      '</svg>';
-  }
-
-  function renderStats() {
-    var total = state.entries.length;
-    var tasksDone = state.entries.filter(function (e) { return e.taskDone; }).length;
-    var rewardsClaimed = state.entries.filter(function (e) { return e.rewardDone; }).length;
-    var html =
-      '<div class="stat"><div class="num">' + total + '</div><div class="label">Entries</div></div>' +
-      '<div class="stat"><div class="num">' + tasksDone + '</div><div class="label">Tasks done</div></div>' +
-      '<div class="stat"><div class="num">' + rewardsClaimed + '</div><div class="label">Rewards claimed</div></div>';
-    document.getElementById("stats").innerHTML = html;
-  }
-
-  function renderFilters() {
-    var filters = [
-      { key: "all", label: "All" },
-      { key: "open", label: "Open" },
-      { key: "earned", label: "Reward pending" },
-      { key: "closed", label: "Closed out" }
-    ];
-    var html = filters.map(function (f) {
-      var active = f.key === state.filter ? " active" : "";
-      return '<button class="filter-btn' + active + '" data-filter="' + f.key + '">' + f.label + '</button>';
-    }).join("");
-    var el = document.getElementById("filters");
-    el.innerHTML = html;
-    Array.prototype.forEach.call(el.querySelectorAll(".filter-btn"), function (btn) {
-      btn.addEventListener("click", function () {
-        state.filter = btn.getAttribute("data-filter");
-        render();
-      });
-    });
-  }
-
-  function escapeHtml(str) {
-    var div = document.createElement("div");
-    div.textContent = str;
-    return div.innerHTML;
-  }
-
-  function renderList() {
-    var visible = state.entries.filter(function (e) {
-      if (state.filter === "open") return !e.taskDone;
-      if (state.filter === "earned") return e.taskDone && !e.rewardDone;
-      if (state.filter === "closed") return e.taskDone && e.rewardDone;
-      return true;
-    });
-
-    var area = document.getElementById("listArea");
-
-    if (visible.length === 0) {
-      area.innerHTML = '<div class="empty">' +
-        (state.entries.length === 0
-          ? "Nothing in the ledger yet. Add a task and its reward above."
-          : "No entries match this filter.") +
-        '</div>';
-      return;
-    }
-
-    var html = '<div class="entries">' + visible.map(function (e) {
-      var taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
-      var rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
-      var hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
-      return (
-        '<div class="entry">' +
-          '<div class="half task">' +
-            '<button class="stamp-btn" data-action="task" data-id="' + e.id + '" aria-label="Toggle task">' + taskCircle + '</button>' +
-            '<div>' +
-              '<div class="label-small task-label">Task</div>' +
-              '<div class="entry-title' + (e.taskDone ? " done" : "") + '">' + escapeHtml(e.title) + '</div>' +
-            '</div>' +
-          '</div>' +
-          '<div class="perf"></div>' +
-          '<div class="half reward' + (e.taskDone ? " unlocked" : "") + '">' +
-            '<button class="stamp-btn" data-action="reward" data-id="' + e.id + '" ' + (e.taskDone ? "" : "disabled") + ' aria-label="Toggle reward">' + rewardCircle + '</button>' +
-            '<div>' +
-              '<div class="label-small reward-label">Reward</div>' +
-              '<div class="entry-reward' + (e.rewardDone ? " done" : "") + '">' + escapeHtml(e.reward) + '</div>' +
-              hint +
-            '</div>' +
-          '</div>' +
-          '<button class="remove-btn" data-action="remove" data-id="' + e.id + '" aria-label="Remove entry">&times;</button>' +
-        '</div>'
-      );
-    }).join("") + '</div>';
-
-    area.innerHTML = html;
-
-    Array.prototype.forEach.call(area.querySelectorAll("[data-action]"), function (btn) {
-      btn.addEventListener("click", function () {
-        var id = btn.getAttribute("data-id");
-        var action = btn.getAttribute("data-action");
-        if (action === "task") toggleTask(id);
-        if (action === "reward") toggleReward(id);
-        if (action === "remove") removeEntry(id);
-      });
-    });
-  }
-
-  function render() {
-    renderStats();
-    renderFilters();
-    renderList();
-  }
-
-  document.getElementById("addBtn").addEventListener("click", addEntry);
-  document.getElementById("taskInput").addEventListener("keydown", function (ev) {
-    if (ev.key === "Enter") addEntry();
-  });
-  document.getElementById("rewardInput").addEventListener("keydown", function (ev) {
-    if (ev.key === "Enter") addEntry();
-  });
-
-  load();
-  render();
-})();
-</script>
 <script>
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", function () {
