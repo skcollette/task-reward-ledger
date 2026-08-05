@@ -1,533 +1,485 @@
-import { useState, useEffect, useRef } from "react";
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<title>Task & Reward Ledger</title>
+<meta name="theme-color" content="#16302C" />
+<link rel="icon" href="data:," />
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Serif+4:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Source+Serif+4:wght@400;500&family=IBM+Plex+Mono:wght@500&display=swap');`;
-
-const PALETTE = {
-  ink: "#16302C",
-  inkLight: "#20443D",
-  parchment: "#F3EEE1",
-  parchmentDark: "#E7DFCB",
-  gold: "#C9973F",
-  goldDeep: "#8F6A26",
-  sage: "#6E8F73",
-  sageDeep: "#41573F",
-  charcoal: "#26261F",
-  muted: "#7A7768",
-};
-
-function uid() {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function StampMark({ color, label }) {
-  return (
-    <svg width="40" height="40" viewBox="0 0 40 40" style={{ display: "block" }}>
-      <circle cx="20" cy="20" r="18" fill="none" stroke={color} strokeWidth="2" />
-      <circle cx="20" cy="20" r="14" fill="none" stroke={color} strokeWidth="1" />
-      <text
-        x="20"
-        y="24"
-        textAnchor="middle"
-        fontFamily="'IBM Plex Mono', monospace"
-        fontSize="9"
-        fontWeight="500"
-        fill={color}
-        transform="rotate(-8 20 20)"
-      >
-        {label}
-      </text>
-    </svg>
-  );
-}
-
-function Perforation() {
-  const dots = Array.from({ length: 14 });
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: 1,
-        alignSelf: "stretch",
-        position: "relative",
-      }}
-    >
-      <div
-        style={{
-          position: "absolute",
-          top: 0,
-          bottom: 0,
-          left: "50%",
-          width: 0,
-          borderLeft: `2px dashed ${PALETTE.parchmentDark}`,
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          top: -9,
-          left: -9,
-          width: 18,
-          height: 18,
-          borderRadius: "50%",
-          background: PALETTE.ink,
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          bottom: -9,
-          left: -9,
-          width: 18,
-          height: 18,
-          borderRadius: "50%",
-          background: PALETTE.ink,
-        }}
-      />
-    </div>
-  );
-}
-
-export default function TaskRewardLedger() {
-  const [entries, setEntries] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [title, setTitle] = useState("");
-  const [reward, setReward] = useState("");
-  const [filter, setFilter] = useState("all");
-  const saveTimeout = useRef(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await window.storage.get("ledger-entries", false);
-        setEntries(res ? JSON.parse(res.value) : []);
-      } catch (e) {
-        setEntries([]);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, []);
-
-  const persist = (next) => {
-    setEntries(next);
-    if (saveTimeout.current) clearTimeout(saveTimeout.current);
-    saveTimeout.current = setTimeout(async () => {
-      try {
-        await window.storage.set("ledger-entries", JSON.stringify(next), false);
-        setError(null);
-      } catch (e) {
-        setError("Couldn't save. Your changes may not persist.");
-      }
-    }, 250);
-  };
-
-  const addEntry = () => {
-    if (!title.trim()) return;
-    const next = [
-      ...entries,
-      {
-        id: uid(),
-        title: title.trim(),
-        reward: reward.trim() || "No reward set",
-        taskDone: false,
-        rewardDone: false,
-        createdAt: Date.now(),
-      },
-    ];
-    persist(next);
-    setTitle("");
-    setReward("");
-  };
-
-  const toggleTask = (id) => {
-    persist(
-      entries.map((e) =>
-        e.id === id
-          ? { ...e, taskDone: !e.taskDone, rewardDone: !e.taskDone ? e.rewardDone : false }
-          : e
-      )
-    );
-  };
-
-  const toggleReward = (id) => {
-    persist(entries.map((e) => (e.id === id ? { ...e, rewardDone: !e.rewardDone } : e)));
-  };
-
-  const removeEntry = (id) => {
-    persist(entries.filter((e) => e.id !== id));
-  };
-
-  if (loading) {
-    return (
-      <div style={{ padding: "3rem", textAlign: "center", color: PALETTE.muted, fontFamily: "'Source Serif 4', serif" }}>
-        <style>{FONT_IMPORT}</style>
-        Opening the ledger…
-      </div>
-    );
+  :root {
+    --ink: #16302C;
+    --parchment: #F3EEE1;
+    --parchment-dark: #E7DFCB;
+    --gold: #C9973F;
+    --gold-deep: #8F6A26;
+    --sage: #6E8F73;
+    --charcoal: #26261F;
+    --muted: #7A7768;
   }
 
-  const visible = entries.filter((e) => {
-    if (filter === "open") return !e.taskDone;
-    if (filter === "earned") return e.taskDone && !e.rewardDone;
-    if (filter === "closed") return e.taskDone && e.rewardDone;
-    return true;
-  });
+  * { box-sizing: border-box; }
 
-  const stats = {
-    total: entries.length,
-    tasksDone: entries.filter((e) => e.taskDone).length,
-    rewardsClaimed: entries.filter((e) => e.rewardDone).length,
+  body {
+    margin: 0;
+    background: var(--parchment);
+    font-family: 'Source Serif 4', serif;
+    color: var(--charcoal);
+  }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 2.5rem 1.25rem 4rem;
+  }
+
+  .eyebrow {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--gold-deep);
+    margin: 0 0 4px;
+  }
+
+  h1 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: 34px;
+    margin: 0 0 1.75rem;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+
+  .stats {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 1.75rem;
+  }
+
+  .stat {
+    flex: 1;
+    background: #fff;
+    border: 1px solid var(--parchment-dark);
+    border-radius: 6px;
+    padding: 10px 14px;
+  }
+
+  .stat .num {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--ink);
+  }
+
+  .stat .label {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .form-card {
+    background: #fff;
+    border: 1px solid var(--parchment-dark);
+    border-radius: 8px;
+    padding: 1.1rem 1.2rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .form-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+  }
+
+  input[type="text"] {
+    flex: 1 1 220px;
+    padding: 9px 12px;
+    border: 1px solid var(--parchment-dark);
+    border-radius: 6px;
+    font-family: 'Source Serif 4', serif;
+    font-size: 15px;
+    background: var(--parchment);
+    color: var(--charcoal);
+  }
+
+  input[type="text"]:focus {
+    outline: 2px solid var(--sage);
+    outline-offset: 1px;
+  }
+
+  button.add-btn {
+    background: var(--ink);
+    color: var(--parchment);
+    border: none;
+    border-radius: 6px;
+    padding: 9px 18px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    cursor: pointer;
+  }
+
+  .filters {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+
+  .filter-btn {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--parchment-dark);
+    border-radius: 20px;
+    padding: 5px 13px;
+    font-size: 12px;
+    font-family: 'IBM Plex Mono', monospace;
+    cursor: pointer;
+  }
+
+  .filter-btn.active {
+    background: var(--ink);
+    color: var(--parchment);
+    border-color: var(--ink);
+  }
+
+  .empty {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--muted);
+    font-size: 15px;
+  }
+
+  .entries {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .entry {
+    display: flex;
+    background: #fff;
+    border: 1px solid var(--parchment-dark);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.03);
+    position: relative;
+  }
+
+  .half {
+    padding: 14px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .half.task { flex: 1.3; }
+  .half.reward { flex: 1; background: var(--parchment); }
+  .half.reward.unlocked { background: #FEFCF6; }
+
+  .perf {
+    width: 1px;
+    align-self: stretch;
+    position: relative;
+    border-left: 2px dashed var(--parchment-dark);
+  }
+  .perf::before, .perf::after {
+    content: "";
+    position: absolute;
+    left: -9px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: var(--ink);
+  }
+  .perf::before { top: -9px; }
+  .perf::after { bottom: -9px; }
+
+  .stamp-btn {
+    width: 40px;
+    height: 40px;
+    flex-shrink: 0;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    padding: 0;
+  }
+
+  .stamp-btn:disabled { cursor: not-allowed; opacity: 0.4; }
+
+  .circle {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 2px solid var(--parchment-dark);
+  }
+
+  .label-small {
+    font-size: 10px;
+    font-family: 'IBM Plex Mono', monospace;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 2px;
+  }
+  .label-small.task-label { color: var(--muted); }
+  .label-small.reward-label { color: var(--gold-deep); }
+
+  .entry-title { font-size: 16px; }
+  .entry-reward { font-size: 15px; }
+  .done { text-decoration: line-through; color: var(--muted); }
+
+  .hint { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .remove-btn {
+    border: none;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    padding: 0 12px;
+    font-size: 16px;
+  }
+
+  .error-msg { color: #8F3B2A; font-size: 13px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <p class="eyebrow">Ledger of tasks &amp; their rewards</p>
+  <h1>Earn it, then claim it</h1>
+
+  <div class="stats" id="stats"></div>
+
+  <div class="form-card">
+    <div class="form-row">
+      <input type="text" id="taskInput" placeholder="Task — e.g. Finish quarterly report" />
+      <input type="text" id="rewardInput" placeholder="Reward — e.g. 30 min of a new game" />
+    </div>
+    <button class="add-btn" id="addBtn">Add to ledger</button>
+  </div>
+
+  <div class="error-msg" id="errorMsg" style="display:none;"></div>
+
+  <div class="filters" id="filters"></div>
+
+  <div id="listArea"></div>
+</div>
+
+<script>
+(function () {
+  var STORAGE_KEY = "ledger-entries";
+  var state = {
+    entries: [],
+    filter: "all"
   };
 
-  return (
-    <div
-      style={{
-        background: PALETTE.parchment,
-        minHeight: "100%",
-        padding: "2.5rem 1.5rem",
-        fontFamily: "'Source Serif 4', serif",
-        color: PALETTE.charcoal,
-      }}
-    >
-      <style>{FONT_IMPORT}</style>
-      <div style={{ maxWidth: 640, margin: "0 auto" }}>
-        {/* Header */}
-        <div style={{ marginBottom: "2rem" }}>
-          <p
-            style={{
-              fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: 11,
-              letterSpacing: "0.12em",
-              textTransform: "uppercase",
-              color: PALETTE.goldDeep,
-              margin: "0 0 4px",
-            }}
-          >
-            Ledger of tasks & their rewards
-          </p>
-          <h1
-            style={{
-              fontFamily: "'Fraunces', serif",
-              fontWeight: 600,
-              fontSize: 34,
-              margin: 0,
-              color: PALETTE.ink,
-              letterSpacing: "-0.01em",
-            }}
-          >
-            Earn it, then claim it
-          </h1>
-        </div>
+  function uid() {
+    return Math.random().toString(36).slice(2, 10);
+  }
 
-        {/* Stats */}
-        <div style={{ display: "flex", gap: 12, marginBottom: "1.75rem" }}>
-          {[
-            { label: "Entries", value: stats.total },
-            { label: "Tasks done", value: stats.tasksDone },
-            { label: "Rewards claimed", value: stats.rewardsClaimed },
-          ].map((s) => (
-            <div
-              key={s.label}
-              style={{
-                flex: 1,
-                background: "#FFFFFF",
-                border: `1px solid ${PALETTE.parchmentDark}`,
-                borderRadius: 6,
-                padding: "10px 14px",
-              }}
-            >
-              <div
-                style={{
-                  fontFamily: "'IBM Plex Mono', monospace",
-                  fontSize: 22,
-                  fontWeight: 500,
-                  color: PALETTE.ink,
-                }}
-              >
-                {s.value}
-              </div>
-              <div style={{ fontSize: 12, color: PALETTE.muted }}>{s.label}</div>
-            </div>
-          ))}
-        </div>
+  function load() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      state.entries = raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      state.entries = [];
+      showError("Couldn't read saved data. Starting fresh.");
+    }
+  }
 
-        {/* Add form */}
-        <div
-          style={{
-            background: "#FFFFFF",
-            border: `1px solid ${PALETTE.parchmentDark}`,
-            borderRadius: 8,
-            padding: "1.1rem 1.2rem",
-            marginBottom: "1.75rem",
-          }}
-        >
-          <div style={{ display: "flex", gap: 10, marginBottom: 10, flexWrap: "wrap" }}>
-            <input
-              value={title}
-              onChange={(ev) => setTitle(ev.target.value)}
-              onKeyDown={(ev) => ev.key === "Enter" && addEntry()}
-              placeholder="Task — e.g. Finish quarterly report"
-              style={{
-                flex: "1 1 240px",
-                padding: "9px 12px",
-                border: `1px solid ${PALETTE.parchmentDark}`,
-                borderRadius: 6,
-                fontFamily: "'Source Serif 4', serif",
-                fontSize: 15,
-                background: PALETTE.parchment,
-                color: PALETTE.charcoal,
-              }}
-            />
-            <input
-              value={reward}
-              onChange={(ev) => setReward(ev.target.value)}
-              onKeyDown={(ev) => ev.key === "Enter" && addEntry()}
-              placeholder="Reward — e.g. 30 min of a new game"
-              style={{
-                flex: "1 1 220px",
-                padding: "9px 12px",
-                border: `1px solid ${PALETTE.parchmentDark}`,
-                borderRadius: 6,
-                fontFamily: "'Source Serif 4', serif",
-                fontSize: 15,
-                background: PALETTE.parchment,
-                color: PALETTE.charcoal,
-              }}
-            />
-          </div>
-          <button
-            onClick={addEntry}
-            style={{
-              background: PALETTE.ink,
-              color: PALETTE.parchment,
-              border: "none",
-              borderRadius: 6,
-              padding: "9px 18px",
-              fontFamily: "'IBM Plex Mono', monospace",
-              fontSize: 12,
-              letterSpacing: "0.04em",
-              textTransform: "uppercase",
-              cursor: "pointer",
-            }}
-          >
-            Add to ledger
-          </button>
-        </div>
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state.entries));
+      hideError();
+    } catch (e) {
+      showError("Couldn't save. Your browser storage may be full or disabled.");
+    }
+  }
 
-        {error && (
-          <div style={{ color: "#8F3B2A", fontSize: 13, marginBottom: 12 }}>{error}</div>
-        )}
+  function showError(msg) {
+    var el = document.getElementById("errorMsg");
+    el.textContent = msg;
+    el.style.display = "block";
+  }
+  function hideError() {
+    document.getElementById("errorMsg").style.display = "none";
+  }
 
-        {/* Filters */}
-        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
-          {[
-            { key: "all", label: "All" },
-            { key: "open", label: "Open" },
-            { key: "earned", label: "Reward pending" },
-            { key: "closed", label: "Closed out" },
-          ].map((f) => (
-            <button
-              key={f.key}
-              onClick={() => setFilter(f.key)}
-              style={{
-                background: filter === f.key ? PALETTE.ink : "transparent",
-                color: filter === f.key ? PALETTE.parchment : PALETTE.muted,
-                border: `1px solid ${filter === f.key ? PALETTE.ink : PALETTE.parchmentDark}`,
-                borderRadius: 20,
-                padding: "5px 13px",
-                fontSize: 12,
-                fontFamily: "'IBM Plex Mono', monospace",
-                cursor: "pointer",
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+  function addEntry() {
+    var titleInput = document.getElementById("taskInput");
+    var rewardInput = document.getElementById("rewardInput");
+    var title = titleInput.value.trim();
+    var reward = rewardInput.value.trim();
+    if (!title) return;
+    state.entries.push({
+      id: uid(),
+      title: title,
+      reward: reward || "No reward set",
+      taskDone: false,
+      rewardDone: false,
+      createdAt: Date.now()
+    });
+    titleInput.value = "";
+    rewardInput.value = "";
+    save();
+    render();
+  }
 
-        {/* Entries */}
-        {visible.length === 0 && (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "2.5rem 1rem",
-              color: PALETTE.muted,
-              fontSize: 15,
-            }}
-          >
-            {entries.length === 0
-              ? "Nothing in the ledger yet. Add a task and its reward above."
-              : "No entries match this filter."}
-          </div>
-        )}
+  function toggleTask(id) {
+    state.entries = state.entries.map(function (e) {
+      if (e.id !== id) return e;
+      var nowDone = !e.taskDone;
+      return Object.assign({}, e, {
+        taskDone: nowDone,
+        rewardDone: nowDone ? e.rewardDone : false
+      });
+    });
+    save();
+    render();
+  }
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {visible.map((e) => (
-            <div
-              key={e.id}
-              style={{
-                display: "flex",
-                background: "#FFFFFF",
-                border: `1px solid ${PALETTE.parchmentDark}`,
-                borderRadius: 10,
-                overflow: "hidden",
-                boxShadow: "0 1px 0 rgba(0,0,0,0.03)",
-              }}
-            >
-              {/* Task half */}
-              <div
-                style={{
-                  flex: 1.3,
-                  padding: "14px 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <button
-                  onClick={() => toggleTask(e.id)}
-                  aria-label={e.taskDone ? "Mark task not done" : "Mark task done"}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    flexShrink: 0,
-                    border: "none",
-                    background: "transparent",
-                    cursor: "pointer",
-                    padding: 0,
-                  }}
-                >
-                  {e.taskDone ? (
-                    <StampMark color={PALETTE.sage} label="DONE" />
-                  ) : (
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: "50%",
-                        border: `2px solid ${PALETTE.parchmentDark}`,
-                      }}
-                    />
-                  )}
-                </button>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontFamily: "'IBM Plex Mono', monospace",
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      color: PALETTE.muted,
-                      marginBottom: 2,
-                    }}
-                  >
-                    Task
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 16,
-                      textDecoration: e.taskDone ? "line-through" : "none",
-                      color: e.taskDone ? PALETTE.muted : PALETTE.charcoal,
-                    }}
-                  >
-                    {e.title}
-                  </div>
-                </div>
-              </div>
+  function toggleReward(id) {
+    state.entries = state.entries.map(function (e) {
+      if (e.id !== id || !e.taskDone) return e;
+      return Object.assign({}, e, { rewardDone: !e.rewardDone });
+    });
+    save();
+    render();
+  }
 
-              <Perforation />
+  function removeEntry(id) {
+    state.entries = state.entries.filter(function (e) { return e.id !== id; });
+    save();
+    render();
+  }
 
-              {/* Reward half */}
-              <div
-                style={{
-                  flex: 1,
-                  padding: "14px 16px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  background: e.taskDone ? "#FEFCF6" : PALETTE.parchment,
-                }}
-              >
-                <button
-                  onClick={() => e.taskDone && toggleReward(e.id)}
-                  disabled={!e.taskDone}
-                  aria-label={e.rewardDone ? "Mark reward not claimed" : "Mark reward claimed"}
-                  style={{
-                    width: 40,
-                    height: 40,
-                    flexShrink: 0,
-                    border: "none",
-                    background: "transparent",
-                    cursor: e.taskDone ? "pointer" : "not-allowed",
-                    padding: 0,
-                    opacity: e.taskDone ? 1 : 0.4,
-                  }}
-                >
-                  {e.rewardDone ? (
-                    <StampMark color={PALETTE.gold} label="CLAIM" />
-                  ) : (
-                    <div
-                      style={{
-                        width: 40,
-                        height: 40,
-                        borderRadius: "50%",
-                        border: `2px solid ${PALETTE.parchmentDark}`,
-                      }}
-                    />
-                  )}
-                </button>
-                <div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      fontFamily: "'IBM Plex Mono', monospace",
-                      letterSpacing: "0.08em",
-                      textTransform: "uppercase",
-                      color: PALETTE.goldDeep,
-                      marginBottom: 2,
-                    }}
-                  >
-                    Reward
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 15,
-                      textDecoration: e.rewardDone ? "line-through" : "none",
-                      color: e.rewardDone ? PALETTE.muted : PALETTE.charcoal,
-                    }}
-                  >
-                    {e.reward}
-                  </div>
-                  {!e.taskDone && (
-                    <div style={{ fontSize: 11, color: PALETTE.muted, marginTop: 2 }}>
-                      Finish the task to unlock
-                    </div>
-                  )}
-                </div>
-              </div>
+  function stampSvg(color, label) {
+    return '<svg width="40" height="40" viewBox="0 0 40 40">' +
+      '<circle cx="20" cy="20" r="18" fill="none" stroke="' + color + '" stroke-width="2"/>' +
+      '<circle cx="20" cy="20" r="14" fill="none" stroke="' + color + '" stroke-width="1"/>' +
+      '<text x="20" y="24" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="9" font-weight="500" fill="' + color + '" transform="rotate(-8 20 20)">' + label + '</text>' +
+      '</svg>';
+  }
 
-              <button
-                onClick={() => removeEntry(e.id)}
-                aria-label="Remove entry"
-                style={{
-                  border: "none",
-                  background: "transparent",
-                  color: PALETTE.muted,
-                  cursor: "pointer",
-                  padding: "0 12px",
-                  fontSize: 16,
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
+  function renderStats() {
+    var total = state.entries.length;
+    var tasksDone = state.entries.filter(function (e) { return e.taskDone; }).length;
+    var rewardsClaimed = state.entries.filter(function (e) { return e.rewardDone; }).length;
+    var html =
+      '<div class="stat"><div class="num">' + total + '</div><div class="label">Entries</div></div>' +
+      '<div class="stat"><div class="num">' + tasksDone + '</div><div class="label">Tasks done</div></div>' +
+      '<div class="stat"><div class="num">' + rewardsClaimed + '</div><div class="label">Rewards claimed</div></div>';
+    document.getElementById("stats").innerHTML = html;
+  }
+
+  function renderFilters() {
+    var filters = [
+      { key: "all", label: "All" },
+      { key: "open", label: "Open" },
+      { key: "earned", label: "Reward pending" },
+      { key: "closed", label: "Closed out" }
+    ];
+    var html = filters.map(function (f) {
+      var active = f.key === state.filter ? " active" : "";
+      return '<button class="filter-btn' + active + '" data-filter="' + f.key + '">' + f.label + '</button>';
+    }).join("");
+    var el = document.getElementById("filters");
+    el.innerHTML = html;
+    Array.prototype.forEach.call(el.querySelectorAll(".filter-btn"), function (btn) {
+      btn.addEventListener("click", function () {
+        state.filter = btn.getAttribute("data-filter");
+        render();
+      });
+    });
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function renderList() {
+    var visible = state.entries.filter(function (e) {
+      if (state.filter === "open") return !e.taskDone;
+      if (state.filter === "earned") return e.taskDone && !e.rewardDone;
+      if (state.filter === "closed") return e.taskDone && e.rewardDone;
+      return true;
+    });
+
+    var area = document.getElementById("listArea");
+
+    if (visible.length === 0) {
+      area.innerHTML = '<div class="empty">' +
+        (state.entries.length === 0
+          ? "Nothing in the ledger yet. Add a task and its reward above."
+          : "No entries match this filter.") +
+        '</div>';
+      return;
+    }
+
+    var html = '<div class="entries">' + visible.map(function (e) {
+      var taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
+      var rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
+      var hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
+      return (
+        '<div class="entry">' +
+          '<div class="half task">' +
+            '<button class="stamp-btn" data-action="task" data-id="' + e.id + '" aria-label="Toggle task">' + taskCircle + '</button>' +
+            '<div>' +
+              '<div class="label-small task-label">Task</div>' +
+              '<div class="entry-title' + (e.taskDone ? " done" : "") + '">' + escapeHtml(e.title) + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="perf"></div>' +
+          '<div class="half reward' + (e.taskDone ? " unlocked" : "") + '">' +
+            '<button class="stamp-btn" data-action="reward" data-id="' + e.id + '" ' + (e.taskDone ? "" : "disabled") + ' aria-label="Toggle reward">' + rewardCircle + '</button>' +
+            '<div>' +
+              '<div class="label-small reward-label">Reward</div>' +
+              '<div class="entry-reward' + (e.rewardDone ? " done" : "") + '">' + escapeHtml(e.reward) + '</div>' +
+              hint +
+            '</div>' +
+          '</div>' +
+          '<button class="remove-btn" data-action="remove" data-id="' + e.id + '" aria-label="Remove entry">&times;</button>' +
+        '</div>'
+      );
+    }).join("") + '</div>';
+
+    area.innerHTML = html;
+
+    Array.prototype.forEach.call(area.querySelectorAll("[data-action]"), function (btn) {
+      btn.addEventListener("click", function () {
+        var id = btn.getAttribute("data-id");
+        var action = btn.getAttribute("data-action");
+        if (action === "task") toggleTask(id);
+        if (action === "reward") toggleReward(id);
+        if (action === "remove") removeEntry(id);
+      });
+    });
+  }
+
+  function render() {
+    renderStats();
+    renderFilters();
+    renderList();
+  }
+
+  document.getElementById("addBtn").addEventListener("click", addEntry);
+  document.getElementById("taskInput").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter") addEntry();
+  });
+  document.getElementById("rewardInput").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter") addEntry();
+  });
+
+  load();
+  render();
+})();
+</script>
+
+</body>
+</html>
