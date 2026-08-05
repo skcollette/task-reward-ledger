@@ -149,6 +149,36 @@
       outline-offset: 1px;
     }
 
+    .owner-tabs {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .owner-tab {
+      border: 1px solid var(--parchment-dark);
+      background: transparent;
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 8px 14px;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 12px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      cursor: pointer;
+    }
+
+    .owner-tab.active {
+      background: var(--ink);
+      color: var(--parchment);
+      border-color: var(--ink);
+    }
+
+    .owner-input-hidden {
+      display: none;
+    }
+
     button.add-btn {
       background: var(--ink);
       color: var(--parchment);
@@ -371,11 +401,11 @@
         <input type="text" id="rewardInput" placeholder="Reward — e.g. 30 min of a new game" />
       </div>
       <div class="form-row">
-        <select id="ownerInput" aria-label="Assign to">
-          <option value="me">Stephen</option>
-          <option value="wife">Angeline</option>
-          <option value="shared">Shared</option>
-        </select>
+        <div class="owner-tabs" id="ownerTabs" role="tablist" aria-label="Task owner">
+          <button class="owner-tab active" type="button" data-owner="mine">Mine</button>
+          <button class="owner-tab" type="button" data-owner="shared">Shared</button>
+        </div>
+        <input class="owner-input-hidden" type="hidden" id="ownerInput" value="mine" />
         <button class="add-btn" id="addBtn" type="button">Add to ledger</button>
         <button class="ghost-btn" id="cancelEditBtn" type="button" style="display:none;">Cancel</button>
       </div>
@@ -443,6 +473,7 @@
       stats: document.getElementById("stats"),
       taskInput: document.getElementById("taskInput"),
       rewardInput: document.getElementById("rewardInput"),
+      ownerTabs: document.getElementById("ownerTabs"),
       ownerInput: document.getElementById("ownerInput"),
       addBtn: document.getElementById("addBtn"),
       cancelEditBtn: document.getElementById("cancelEditBtn"),
@@ -467,14 +498,20 @@
       els.errorMsg.textContent = "";
     }
 
-    function setStatus(msg) {
-      els.statusLine.textContent = msg;
+    function syncOwnerTabs() {
+      const value = els.ownerInput.value || "mine";
+      els.ownerTabs.querySelectorAll(".owner-tab").forEach((btn) => {
+        btn.classList.toggle("active", btn.getAttribute("data-owner") === value);
+      });
     }
 
-    function ownerLabel(owner) {
-      if (owner === "me") return "Me";
-      if (owner === "wife") return "Wife";
-      return "Shared";
+    function setOwnerChoice(value) {
+      els.ownerInput.value = value === "shared" ? "shared" : "mine";
+      syncOwnerTabs();
+    }
+
+    function setStatus(msg) {
+      els.statusLine.textContent = msg;
     }
 
     function stampSvg(color, label) {
@@ -496,7 +533,7 @@
       editTaskId = null;
       els.taskInput.value = "";
       els.rewardInput.value = "";
-      els.ownerInput.value = "me";
+      setOwnerChoice("mine");
       syncEditBanner();
     }
 
@@ -504,7 +541,7 @@
       editTaskId = task.id;
       els.taskInput.value = task.title || "";
       els.rewardInput.value = task.reward || "";
-      els.ownerInput.value = task.owner || "me";
+      setOwnerChoice(task.owner === auth.currentUser?.uid ? "mine" : "shared");
       syncEditBanner();
       els.taskInput.focus();
     }
@@ -561,9 +598,6 @@
         const taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
         const rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
         const hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
-        const owner = e.owner ? ownerLabel(e.owner) : "Shared";
-        const ownerMeta = '<div class="meta">Assigned to: ' + escapeHtml(owner) + '</div>';
-
         return (
           '<div class="entry">' +
             '<div class="half task">' +
@@ -571,7 +605,6 @@
               '<div>' +
                 '<div class="label-small task-label">Task</div>' +
                 '<div class="entry-title' + (e.taskDone ? " done" : "") + '">' + escapeHtml(e.title) + '</div>' +
-                ownerMeta +
               '</div>' +
             '</div>' +
             '<div class="perf"></div>' +
@@ -637,7 +670,7 @@
 
       const title = els.taskInput.value.trim();
       const reward = els.rewardInput.value.trim();
-      const owner = els.ownerInput.value;
+      const owner = els.ownerInput.value === "shared" ? "shared" : auth.currentUser.uid;
 
       if (!auth.currentUser) {
         showError("Please sign in before saving tasks.");
@@ -668,7 +701,7 @@
         });
         els.taskInput.value = "";
         els.rewardInput.value = "";
-        els.ownerInput.value = "me";
+        setOwnerChoice("mine");
       }
     }
 
@@ -730,6 +763,7 @@
 
       els.userLabel.textContent = user.displayName || user.email || "Signed in";
       els.authBtn.textContent = "Sign out";
+      setOwnerChoice("mine");
       setStatus("Signed in as " + (user.displayName || user.email || "user") + ". Loading shared ledger...");
       startListening();
     });
@@ -743,6 +777,12 @@
       saveTask().catch((err) => {
         console.error(err);
         showError(err?.message || "Could not save task.");
+      });
+    });
+
+    els.ownerTabs.querySelectorAll(".owner-tab").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        setOwnerChoice(btn.getAttribute("data-owner"));
       });
     });
 
@@ -766,6 +806,7 @@
 
     render();
     syncEditBanner();
+    syncOwnerTabs();
     setStatus("Connecting to Firebase...");
   </script>
 
