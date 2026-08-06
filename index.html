@@ -496,8 +496,8 @@
     }
 
     function ownerLabel(owner) {
-      if (owner === "me") return "Me";
-      if (owner === "wife") return "Wife";
+      if (owner === "Stephen") return "Stephen";
+      if (owner === "Angeline") return "Angeline";
       return "Shared";
     }
 
@@ -520,7 +520,7 @@
       editTaskId = null;
       els.taskInput.value = "";
       els.rewardInput.value = "";
-      els.ownerInput.value = "me";
+      els.ownerInput.value = "Stephen";
       syncEditBanner();
     }
 
@@ -528,7 +528,7 @@
       editTaskId = task.id;
       els.taskInput.value = task.title || "";
       els.rewardInput.value = task.reward || "";
-      els.ownerInput.value = task.owner || "me";
+      els.ownerInput.value = task.owner || "Stephen";
       syncEditBanner();
       els.taskInput.focus();
     }
@@ -717,7 +717,7 @@
         });
         els.taskInput.value = "";
         els.rewardInput.value = "";
-        els.ownerInput.value = "me";
+        els.ownerInput.value = "Stephen";
       }
     }
 
