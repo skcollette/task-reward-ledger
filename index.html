@@ -446,7 +446,7 @@
 
     const familyId = "collette-family";
     const tasksRef = collection(db, "families", familyId, "tasks");
-    const tasksQuery = query(tasksRef, orderBy("createdAt", "desc"));
+    const tasksQuery = query(tasksRef, orderBy("sortOrder", "asc"));
 
     const state = {
       tasks: [],
@@ -708,10 +708,11 @@
       } else {
         await addDoc(tasksRef, {
           title,
-          reward: reward || "No reward set",
+          reward,
           owner,
-          taskDone: false,
-          rewardDone: false,
+          taskDone:false,
+          rewardDone:false,
+          sortOrder: Date.now(),
           createdAt: serverTimestamp(),
           createdBy: auth.currentUser.uid
         });
