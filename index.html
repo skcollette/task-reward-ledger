@@ -226,6 +226,7 @@
 
     .entry {
       display: flex;
+      flex-wrap: nowrap;
       background: var(--surface);
       border: 1px solid var(--parchment-dark);
       border-radius: 10px;
@@ -357,13 +358,16 @@
       user-select: none;
       -webkit-user-select: none;
       color: var(--muted);
-      font-size: 16px;
-      letter-spacing: 2px;
+      font-size: 15px;
+      letter-spacing: 1px;
       display: flex;
       align-items: center;
-      padding: 0 6px 0 12px;
-      flex-shrink: 0;
+      justify-content: center;
+      width: 26px;
+      flex: 0 0 26px;
       align-self: stretch;
+      background: var(--parchment);
+      border-right: 1px solid var(--parchment-dark);
     }
     .drag-handle:active { cursor: grabbing; }
     .reorder-disabled .drag-handle {
@@ -383,8 +387,15 @@
       font-family: 'IBM Plex Mono', monospace;
       margin: -8px 0 14px;
     }
-    @media (max-width: 640px) {
-      .drag-handle { padding: 8px 0; align-self: center; }
+    @media (max-width: 480px) {
+      .drag-handle {
+        width: auto;
+        flex: 0 0 auto;
+        padding: 6px 0;
+        align-self: stretch;
+        border-right: none;
+        border-bottom: 1px solid var(--parchment-dark);
+      }
       h1 { font-size: 30px; }
       .half { padding: 12px 12px; }
       .entry { flex-direction: column; }
