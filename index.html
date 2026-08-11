@@ -351,7 +351,40 @@
       font-family: 'IBM Plex Mono', monospace;
     }
 
+    .drag-handle {
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      color: var(--muted);
+      font-size: 16px;
+      letter-spacing: 2px;
+      display: flex;
+      align-items: center;
+      padding: 0 6px 0 12px;
+      flex-shrink: 0;
+      align-self: stretch;
+    }
+    .drag-handle:active { cursor: grabbing; }
+    .reorder-disabled .drag-handle {
+      opacity: 0.3;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .entry.sortable-chosen {
+      box-shadow: 0 4px 14px rgba(0,0,0,0.14);
+    }
+    .entry.sortable-ghost {
+      opacity: 0.35;
+    }
+    .reorder-hint {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      margin: -8px 0 14px;
+    }
     @media (max-width: 640px) {
+      .drag-handle { padding: 8px 0; align-self: center; }
       h1 { font-size: 30px; }
       .half { padding: 12px 12px; }
       .entry { flex-direction: column; }
@@ -361,6 +394,7 @@
   </style>
 </head>
 <body>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.15.2/Sortable.min.js"></script>
   <div class="wrap">
     <div class="topbar">
       <p class="eyebrow">Ledger of tasks &amp; their rewards</p>
@@ -427,7 +461,8 @@
       updateDoc,
       serverTimestamp,
       query,
-      orderBy
+      orderBy,
+      writeBatch
     } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
     const firebaseConfig = {
@@ -457,6 +492,7 @@
 
     let editTaskId = null;
     let unsubscribeTasks = null;
+    let sortableInstance = null;
 
     const els = {
       authBtn: document.getElementById("authBtn"),
@@ -605,7 +641,13 @@
         return;
       }
 
-      els.listArea.innerHTML = '<div class="entries">' + visible.map((e) => {
+      const reorderAllowed = state.filter === "all" && state.ownerFilter === "all";
+      const reorderHint = reorderAllowed
+        ? '<div class="reorder-hint">Drag the ⠿ handle to reorder.</div>'
+        : '<div class="reorder-hint">Switch Owner/Status to "All" to drag-reorder.</div>';
+
+      els.listArea.innerHTML = reorderHint +
+        '<div class="entries' + (reorderAllowed ? "" : " reorder-disabled") + '">' + visible.map((e) => {
         const taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
         const rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
         const hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
@@ -613,7 +655,8 @@
         const ownerMeta = '<div class="meta">Assigned to: ' + escapeHtml(owner) + '</div>';
 
         return (
-          '<div class="entry">' +
+          '<div class="entry" data-id="' + e.id + '">' +
+            '<div class="drag-handle" aria-hidden="true">⠿</div>' +
             '<div class="half task">' +
               '<button class="stamp-btn" data-action="task" data-id="' + e.id + '" type="button" aria-label="Toggle task">' + taskCircle + '</button>' +
               '<div>' +
@@ -653,6 +696,44 @@
           }
         });
       });
+
+      initSortable(reorderAllowed);
+    }
+
+    function initSortable(enabled) {
+      if (sortableInstance) {
+        sortableInstance.destroy();
+        sortableInstance = null;
+      }
+      const container = els.listArea.querySelector(".entries");
+      if (!container || !enabled || typeof Sortable === "undefined") return;
+
+      sortableInstance = Sortable.create(container, {
+        handle: ".drag-handle",
+        animation: 150,
+        ghostClass: "sortable-ghost",
+        chosenClass: "sortable-chosen",
+        onEnd: (evt) => {
+          if (evt.oldIndex === evt.newIndex) return;
+          const orderedIds = Array.from(container.children).map((el) => el.getAttribute("data-id"));
+          persistOrder(orderedIds).catch((err) => {
+            console.error(err);
+            showError(err?.message || "Could not save new order.");
+          });
+        }
+      });
+    }
+
+    async function persistOrder(orderedIds) {
+      // orderedIds reflects the full list since reordering is only enabled
+      // when both filters are "all", so it maps 1:1 onto state.tasks.
+      const batch = writeBatch(db);
+      orderedIds.forEach((id, index) => {
+        batch.update(doc(db, "families", familyId, "tasks", id), {
+          sortOrder: (index + 1) * 1000
+        });
+      });
+      await batch.commit();
     }
 
     function render() {
