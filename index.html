@@ -461,7 +461,6 @@
       updateDoc,
       serverTimestamp,
       query,
-      orderBy,
       writeBatch
     } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
@@ -481,7 +480,10 @@
 
     const familyId = "collette-family";
     const tasksRef = collection(db, "families", familyId, "tasks");
-    const tasksQuery = query(tasksRef, orderBy("sortOrder", "asc"));
+    // No server-side orderBy: Firestore's orderBy silently excludes any doc
+    // missing the field being ordered by. We sort client-side instead (see
+    // startListening) so older tasks without sortOrder still show up.
+    const tasksQuery = query(tasksRef);
 
     const state = {
       tasks: [],
@@ -832,9 +834,31 @@
       if (unsubscribeTasks) unsubscribeTasks();
 
       unsubscribeTasks = onSnapshot(tasksQuery, (snap) => {
-        state.tasks = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        const docsData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+        docsData.sort((a, b) => {
+          const aHas = typeof a.sortOrder === "number";
+          const bHas = typeof b.sortOrder === "number";
+          if (aHas && bHas) return a.sortOrder - b.sortOrder;
+          if (aHas) return -1;
+          if (bHas) return 1;
+          // Neither has sortOrder yet: fall back to creation time so
+          // order stays stable until it gets backfilled below.
+          const aTime = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+          const bTime = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+          return aTime - bTime;
+        });
+
+        state.tasks = docsData;
         setStatus("Live sync active: " + state.tasks.length + " task(s) loaded.");
         render();
+
+        const missingSortOrder = docsData.some((t) => typeof t.sortOrder !== "number");
+        if (missingSortOrder && auth.currentUser) {
+          persistOrder(docsData.map((t) => t.id)).catch((err) => {
+            console.error("Backfill of sortOrder failed:", err);
+          });
+        }
       }, (err) => {
         console.error(err);
         showError(err?.message || "Could not load tasks.");
