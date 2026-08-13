@@ -488,6 +488,7 @@
       addDoc,
       deleteDoc,
       doc,
+      getDoc,
       onSnapshot,
       updateDoc,
       serverTimestamp,
@@ -509,18 +510,21 @@
     const auth = getAuth(app);
     const db = getFirestore(app);
 
-    const familyId = "collette-family";
-    const tasksRef = collection(db, "families", familyId, "tasks");
-    // No server-side orderBy: Firestore's orderBy silently excludes any doc
-    // missing the field being ordered by. We sort client-side instead (see
-    // startListening) so older tasks without sortOrder still show up.
-    const tasksQuery = query(tasksRef);
+    // Each signed-in user belongs to exactly one "family" (a household
+    // sharing one task list). Which family they belong to is looked up
+    // from familyByEmail/{email} -> { familyId } after sign-in, rather
+    // than being hardcoded, so different people signing in see only
+    // their own family's tasks. See Firestore Security Rules for the
+    // server-side enforcement of this boundary.
+    let tasksRef = null;
+    let tasksQuery = null;
 
     const state = {
       tasks: [],
       filter: "all",
       ownerFilter: "all",
-      user: null
+      user: null,
+      familyId: null
     };
 
     let editTaskId = null;
@@ -762,7 +766,7 @@
       // when both filters are "all", so it maps 1:1 onto state.tasks.
       const batch = writeBatch(db);
       orderedIds.forEach((id, index) => {
-        batch.update(doc(db, "families", familyId, "tasks", id), {
+        batch.update(doc(db, "families", state.familyId, "tasks", id), {
           sortOrder: (index + 1) * 1000
         });
       });
@@ -807,13 +811,18 @@
         return;
       }
 
+      if (!state.familyId) {
+        showError("Still loading your household — try again in a moment.");
+        return;
+      }
+
       if (!title) {
         showError("Task title cannot be empty.");
         return;
       }
 
       if (editTaskId) {
-        await updateDoc(doc(db, "families", familyId, "tasks", editTaskId), {
+        await updateDoc(doc(db, "families", state.familyId, "tasks", editTaskId), {
           title,
           reward: reward || "No reward set",
           owner
@@ -841,7 +850,7 @@
       if (!current) return;
 
       const nowDone = !current.taskDone;
-      await updateDoc(doc(db, "families", familyId, "tasks", id), {
+      await updateDoc(doc(db, "families", state.familyId, "tasks", id), {
         taskDone: nowDone,
         rewardDone: nowDone ? current.rewardDone : false
       });
@@ -851,18 +860,24 @@
       const current = state.tasks.find((e) => e.id === id);
       if (!current || !current.taskDone) return;
 
-      await updateDoc(doc(db, "families", familyId, "tasks", id), {
+      await updateDoc(doc(db, "families", state.familyId, "tasks", id), {
         rewardDone: !current.rewardDone
       });
     }
 
     async function removeEntry(id) {
-      await deleteDoc(doc(db, "families", familyId, "tasks", id));
+      await deleteDoc(doc(db, "families", state.familyId, "tasks", id));
       if (editTaskId === id) clearEditingMode();
     }
 
     function startListening() {
       if (unsubscribeTasks) unsubscribeTasks();
+
+      tasksRef = collection(db, "families", state.familyId, "tasks");
+      // No server-side orderBy: Firestore's orderBy silently excludes any
+      // doc missing the field being ordered by. We sort client-side
+      // instead (below) so older tasks without sortOrder still show up.
+      tasksQuery = query(tasksRef);
 
       unsubscribeTasks = onSnapshot(tasksQuery, (snap) => {
         const docsData = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
@@ -899,6 +914,7 @@
 
     onAuthStateChanged(auth, (user) => {
       state.user = user || null;
+      state.familyId = null;
 
       if (!user) {
         els.userLabel.textContent = "Not signed in";
@@ -916,8 +932,28 @@
 
       els.userLabel.textContent = user.displayName || user.email || "Signed in";
       els.authBtn.textContent = "Sign out";
-      setStatus("Signed in as " + (user.displayName || user.email || "user") + ". Loading shared ledger...");
-      startListening();
+      setStatus("Signed in as " + (user.displayName || user.email || "user") + ". Looking up your household...");
+
+      getDoc(doc(db, "familyByEmail", user.email))
+        .then((snap) => {
+          if (!snap.exists() || !snap.data().familyId) {
+            setStatus("Live sync unavailable.");
+            showError(
+              "This Google account (" + user.email + ") isn't set up on any household yet. " +
+              "Ask whoever manages the app to add your email to a family."
+            );
+            return;
+          }
+          state.familyId = snap.data().familyId;
+          hideError();
+          setStatus("Signed in as " + (user.displayName || user.email || "user") + ". Loading shared ledger...");
+          startListening();
+        })
+        .catch((err) => {
+          console.error(err);
+          setStatus("Live sync unavailable.");
+          showError(err?.message || "Could not look up your household.");
+        });
     });
 
     els.authBtn.addEventListener("click", () => {
