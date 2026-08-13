@@ -436,6 +436,7 @@
     </div>
 
     <h1>Earn it, then claim it</h1>
+    <p class="subhead">Shared in real time through Firestore. No localStorage.</p>
 
     <div class="status" id="statusLine">Loading...</div>
     <div class="editing-banner" id="editingBanner">Editing an existing task.</div>
@@ -447,11 +448,7 @@
         <input type="text" id="rewardInput" placeholder="Reward — e.g. 30 min of a new game" />
       </div>
       <div class="form-row">
-        <select id="ownerInput" aria-label="Assign to">
-          <option value="Stephen">Stephen</option>
-          <option value="Angeline">Angeline</option>
-          <option value="shared">Shared</option>
-        </select>
+        <select id="ownerInput" aria-label="Assign to"></select>
         <button class="add-btn" id="addBtn" type="button">Add to ledger</button>
         <button class="ghost-btn" id="cancelEditBtn" type="button" style="display:none;">Cancel</button>
       </div>
@@ -527,6 +524,33 @@
     };
 
     let editTaskId = null;
+
+    // Assignee options differ per family. Add an entry here whenever a
+    // new family is set up in Firestore (the key must match the doc ID
+    // under families/{familyId} and the value stored in
+    // familyByEmail/{email}.familyId).
+    const FAMILY_OWNERS = {
+      "collette-family": [
+        { key: "Stephen", label: "Stephen" },
+        { key: "Angeline", label: "Angeline" }
+      ],
+      "PaulAndKirsty": [
+        { key: "Paul", label: "Paul" },
+        { key: "Kirsty", label: "Kirsty" }
+      ]
+    };
+    const DEFAULT_OWNERS = [{ key: "Stephen", label: "Stephen" }];
+
+    function currentOwners() {
+      return FAMILY_OWNERS[state.familyId] || DEFAULT_OWNERS;
+    }
+
+    function populateOwnerSelect() {
+      const owners = currentOwners();
+      els.ownerInput.innerHTML =
+        owners.map((o) => '<option value="' + o.key + '">' + o.label + '</option>').join("") +
+        '<option value="shared">Shared</option>';
+    }
     let unsubscribeTasks = null;
     let sortableInstance = null;
 
@@ -568,9 +592,8 @@
     }
 
     function ownerLabel(owner) {
-      if (owner === "Stephen") return "Stephen";
-      if (owner === "Angeline") return "Angeline";
-      return "Shared";
+      const match = currentOwners().find((o) => o.key === owner);
+      return match ? match.label : "Shared";
     }
 
     function stampSvg(color, label) {
@@ -592,7 +615,7 @@
       editTaskId = null;
       els.taskInput.value = "";
       els.rewardInput.value = "";
-      els.ownerInput.value = "Stephen";
+      els.ownerInput.value = currentOwners()[0].key;
       syncEditBanner();
     }
 
@@ -600,7 +623,7 @@
       editTaskId = task.id;
       els.taskInput.value = task.title || "";
       els.rewardInput.value = task.reward || "";
-      els.ownerInput.value = task.owner || "Stephen";
+      els.ownerInput.value = task.owner || currentOwners()[0].key;
       syncEditBanner();
       els.taskInput.focus();
     }
@@ -618,8 +641,7 @@
     function renderOwnerFilters() {
       const owners = [
         { key: "all", label: "All" },
-        { key: "Stephen", label: "Stephen" },
-        { key: "Angeline", label: "Angeline" },
+        ...currentOwners(),
         { key: "shared", label: "Shared" }
       ];
 
@@ -840,7 +862,7 @@
         });
         els.taskInput.value = "";
         els.rewardInput.value = "";
-        els.ownerInput.value = "Stephen";
+        els.ownerInput.value = currentOwners()[0].key;
       }
     }
 
@@ -944,6 +966,8 @@
             return;
           }
           state.familyId = snap.data().familyId;
+          state.ownerFilter = "all";
+          populateOwnerSelect();
           hideError();
           setStatus("Signed in as " + (user.displayName || user.email || "user") + ". Loading shared ledger...");
           startListening();
@@ -985,6 +1009,7 @@
       });
     });
 
+    populateOwnerSelect();
     render();
     syncEditBanner();
     setStatus("Connecting to Firebase...");
