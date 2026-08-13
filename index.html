@@ -941,6 +941,13 @@
         navigator.serviceWorker.register("/task-reward-ledger/sw.js").catch(function (err) {
           console.warn("Service worker registration failed:", err);
         });
+
+        let refreshing = false;
+        navigator.serviceWorker.addEventListener("controllerchange", function () {
+          if (refreshing) return;
+          refreshing = true;
+          window.location.reload();
+        });
       });
     }
   </script>
