@@ -388,19 +388,39 @@
       margin: -8px 0 14px;
     }
     @media (max-width: 480px) {
+      h1 { font-size: 26px; }
+
+      /* Keep the row layout: drag-handle | task | perf | reward.
+         Just make everything narrower so it fits. */
       .drag-handle {
-        width: auto;
-        flex: 0 0 auto;
-        padding: 6px 0;
-        align-self: stretch;
-        border-right: none;
-        border-bottom: 1px solid var(--parchment-dark);
+        width: 20px;
+        flex: 0 0 20px;
+        font-size: 13px;
       }
-      h1 { font-size: 30px; }
-      .half { padding: 12px 12px; }
-      .entry { flex-direction: column; }
-      .perf { display: none; }
-      .half.reward { border-top: 1px dashed var(--parchment-dark); }
+
+      .half {
+        padding: 10px 8px;
+        gap: 8px;
+      }
+
+      .half.task { flex: 1.15; }
+      .half.reward { flex: 1; }
+
+      .stamp-btn, .circle {
+        width: 30px;
+        height: 30px;
+      }
+
+      .label-small { font-size: 9px; }
+      .entry-title { font-size: 13px; line-height: 1.25; }
+      .entry-reward { font-size: 13px; line-height: 1.25; }
+      .meta { font-size: 10px; }
+
+      .perf::before, .perf::after {
+        width: 12px;
+        height: 12px;
+        left: -6px;
+      }
     }
   </style>
 </head>
