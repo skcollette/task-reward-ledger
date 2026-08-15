@@ -727,9 +727,6 @@
         '<div class="entries' + (reorderAllowed ? "" : " reorder-disabled") + '">' + visible.map((e) => {
         const taskCircle = e.taskDone ? stampSvg("#6E8F73", "DONE") : '<div class="circle"></div>';
         const rewardCircle = e.rewardDone ? stampSvg("#C9973F", "CLAIM") : '<div class="circle"></div>';
-        const hint = !e.taskDone ? '<div class="hint">Finish the task to unlock</div>' : "";
-        const owner = e.owner ? ownerLabel(e.owner) : "Shared";
-        const ownerMeta = '<div class="meta">Assigned to: ' + escapeHtml(owner) + '</div>';
 
         return (
           '<div class="entry" data-id="' + e.id + '">' +
@@ -739,7 +736,6 @@
               '<div>' +
                 '<div class="label-small task-label">Task</div>' +
                 '<div class="entry-title' + (e.taskDone ? " done" : "") + '">' + escapeHtml(e.title) + '</div>' +
-                ownerMeta +
               '</div>' +
             '</div>' +
             '<div class="perf"></div>' +
@@ -748,7 +744,6 @@
               '<div>' +
                 '<div class="label-small reward-label">Reward</div>' +
                 '<div class="entry-reward' + (e.rewardDone ? " done" : "") + '">' + escapeHtml(e.reward) + '</div>' +
-                hint +
               '</div>' +
             '</div>' +
             '<button class="edit-btn" data-action="edit" data-id="' + e.id + '" type="button" aria-label="Edit entry">✎</button>' +
