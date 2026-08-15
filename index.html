@@ -412,8 +412,15 @@
       }
 
       .label-small { font-size: 9px; }
-      .entry-title { font-size: 13px; line-height: 1.25; }
-      .entry-reward { font-size: 13px; line-height: 1.25; }
+      .entry-title,
+      .entry-reward {
+        font-size: 13px;
+        line-height: 1.25;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .half { min-width: 0; }
+      .half > div { min-width: 0; overflow: hidden; }
       .meta { font-size: 10px; }
 
       .perf::before, .perf::after {
@@ -808,11 +815,36 @@
       await batch.commit();
     }
 
+    // On narrow screens, task/reward titles are set to nowrap in CSS.
+    // If a title is too long to fit on one line, shrink its font size
+    // (down to a readable minimum) until it fits, rather than clipping
+    // it with an ellipsis. If it still doesn't fit at the minimum size,
+    // let it wrap instead of losing any text.
+    function fitEntryText() {
+      if (window.innerWidth > 480) return;
+      const targets = els.listArea.querySelectorAll(".entry-title, .entry-reward");
+      const maxSize = 13;
+      const minSize = 9;
+      targets.forEach((el) => {
+        el.style.whiteSpace = "nowrap";
+        let size = maxSize;
+        el.style.fontSize = size + "px";
+        while (el.scrollWidth > el.clientWidth && size > minSize) {
+          size -= 0.5;
+          el.style.fontSize = size + "px";
+        }
+        if (el.scrollWidth > el.clientWidth) {
+          el.style.whiteSpace = "normal";
+        }
+      });
+    }
+
     function render() {
       renderStats();
       renderOwnerFilters();
       renderFilters();
       renderList();
+      fitEntryText();
     }
 
     async function signIn() {
@@ -1027,6 +1059,12 @@
     render();
     syncEditBanner();
     setStatus("Connecting to Firebase...");
+
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(fitEntryText, 150);
+    });
   </script>
 
   <script>
